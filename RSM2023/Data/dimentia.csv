@@ -1,0 +1,15 @@
+Studyid,tp,fp,fn,tn
+Galluzi 2010,18,17,4,25
+Bjerke 2009,18,43,2,99
+Zetterberg 2003,15,12,7,19
+Hampel 2004,24,10,5,13
+Chiasserini 2010,17,2,6,16
+Hansson 2007,53,36,4,41
+Blom 2009,9,9,5,5
+Parnetti 2006,4,4,7,40
+Shaw 2009,32,113,5,46
+Hertze 2010,47,33,5,75
+Monge-Argiles 2011,9,10,2,16
+Papaliagkas 2009,5,11,0,37
+Kester 2011,32,16,10,42
+Vos 2013,62,41,29,82

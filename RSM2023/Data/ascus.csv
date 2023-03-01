@@ -1,0 +1,21 @@
+Test,StudyID,TP,FP,TN,FN
+RepC,Andersson 2005,6,14,28,4
+RepC,Bergeron 2000,8,28,71,4
+RepC,Del Mistro 2010,20,191,483,7
+RepC,Kulasingam 2002,20,74,170,6
+RepC,Lytwyn 2000,4,20,26,2
+RepC,Manos 1999,48,324,570,15
+RepC,Monsonego 2008,10,18,168,15
+RepC,Morin 2001,14,126,214,5
+RepC,Silverloo 2009,24,43,105,10
+RepC,Solomon 2001,227,1132,914,40
+HC2,Andersson 2005,6,17,25,4
+HC2,Bergeron 2000,10,38,61,2
+HC2,Del Mistro 2010,27,154,566,2
+HC2,Kulasingam 2002,23,115,129,3
+HC2,Lytwyn 2000,4,19,33,1
+HC2,Manos 1999,58,326,582,7
+HC2,Monsonego 2008,22,110,72,2
+HC2,Morin 2001,17,88,253,2
+HC2,Silverloo 2009,34,65,81,2
+HC2,Solomon 2001,256,1050,984,1
