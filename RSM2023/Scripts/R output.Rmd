@@ -1,0 +1,47 @@
+---
+title: "RSM Publication"
+author: "Victoria N Nyaga"
+date: "2023-03-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Section 5.1
+Install the package
+
+```{r mada}
+#install.packages("mada", dependencies = TRUE)
+library(mada)
+```
+Read in data
+
+```{r telomerase}
+telo <- read.csv('https://raw.githubusercontent.com/VNyaga/Metadta/master/RSM2023/Data/telomerase.csv', sep=',')
+```
+Fit the normal-normal model
+
+```{r telofit}
+fit = reitsma(telo)
+```
+Transform to 0-1 scale
+```{r telotransform}
+ss = summary(fit)
+
+options(digits=2) #set 2 dp
+c(ss$coefficients[3,1], ss$coefficients[3,5], ss$coefficients[3,6]) #Sens
+c(1-ss$coefficients[4,1], 1-ss$coefficients[4,6], 1-ss$coefficients[4,5]) #Spec
+```
+Obtain the variances
+```{r telovar}
+ss$Psi
+```
+
+Forest plot in figure 2
+```{r figure2}
+par(mfcol=c(1,2), cex=0.75)
+forest(madad(telo), type = "sens")
+forest(madad(telo), type = "spec")
+```

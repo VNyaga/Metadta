@@ -1,0 +1,1354 @@
+
+. set more off
+
+. 
+. *Install the commands
+. *ssc install metadta
+. ssc install midas
+checking midas consistency and verifying not already installed...
+all files already exist and are up to date.
+
+. ssc install metandi
+checking metandi consistency and verifying not already installed...
+all files already exist and are up to date.
+
+. 
+. /*========================================================================================*/
+. ***Section 5.1 
+. /*========================================================================================*/
+. *------Table 2 (column 2), Figure 1, Figure 4 (top left)
+. import delimited using "https://raw.githubusercontent.com/VNyaga/Metadta/master/RSM2023/Data/telomerase.csv", delim(",")clear
+(5 vars, 10 obs)
+
+. metadta tp fp fn tn, studyid(study) sumtable(all)
+
+*********************************** Fitted model ***************************************
+    tp ~ binomial(se, tp + fn)
+    tn ~ binomial(sp, tn + fp)
+    logit(se) = mu_lse + study_lse
+    logit(sp) = mu_lsp + study_lsp
+    study_lse, study_lsp ~ biv.normal(0, tau2)
+    Number of observations = 10
+    Number of studies = 10
+
+****************************************************************************************
+
+****************************************************************************************
+
+Between-study heterogeneity statistics
+                           covar            rho
+                           -0.78            -1.00
+                           Tau.sq           I^2(%)
+Generalized                 0.00             0.01
+Sensitivity                 0.18            50.62
+Specificity                 3.31            60.30
+
+LR Test: RE vs FE model
+         Chi2        degrees of
+       statistic      freedom        p-val
+        104.33          3            0.0000
+
+****************************************************************************************
+            Marginal summary measures of test accuracy: Absolute measures
+****************************************************************************************
+
+------------------------------------------------------------------------------------
+     Effect | Proportion  SE(logit)  z(logit)            P>|z|     Lower     Upper  
+------------+-----------------------------------------------------------------------
+Sensitivity |       0.77       0.18      6.61             0.00      0.70      0.82  
+------------+-----------------------------------------------------------------------
+Specificity |       0.91       0.63      3.69             0.00      0.75      0.97  
+------------------------------------------------------------------------------------
+NOTE: H0: P = 0.5 vs. H1: P != 0.5
+****************************************************************************************
+            Study specific test accuracy: Absolute Measures
+****************************************************************************************
+
+                 |                 Sensitivity                |                 Specificity
+ Study           |      Estimate     [95% Conf. Interval]     |      Estimate     [95% Conf. Interval]
+-----------------+--------------------------------------------+--------------------------------------------
+ Ito1998         |        0.76        0.58      0.89          |        0.96         0.80      1.00
+ Rahat1999       |        0.81        0.58      0.95          |        0.79         0.49      0.95
+ Kavaler1998     |        0.85        0.76      0.91          |        0.66         0.51      0.79
+ Yoshida1997     |        0.62        0.41      0.80          |        0.96         0.90      0.99
+ Ramakumar1999   |        0.70        0.57      0.82          |        0.99         0.96      1.00
+ Landman1998     |        0.81        0.67      0.91          |        0.80         0.61      0.92
+ Kinoshita1997   |        0.55        0.39      0.70          |        1.00         0.74      1.00
+ Gelmini2000     |        0.82        0.65      0.93          |        0.90         0.68      0.99
+ Cheng2000       |        0.82        0.57      0.96          |        0.91         0.75      0.98
+ Cassel2001      |        0.84        0.70      0.93          |        0.24         0.10      0.44
+ Overall         |        0.77        0.70      0.82          |        0.91         0.75      0.97
+-----------------+--------------------------------------------+--------------------------------------------
+                 |                                            |  
+
+. 
+. *------Table 2 (column 3), Figure 4 (top middle)
+. rename study studyid
+
+. midas tp fp fn tn, plot sroc(both) res(all) nip(1)
+
+
+
+
+
+
+SUMMARY DATA AND PERFORMANCE ESTIMATES
+
+ 
+Number of studies =  10
+ 
+Reference-positive Units =  424
+ 
+Reference-negative Units =  431
+ 
+Pretest Prob of Disease = 0.50
+ 
+
+Deviance = 100.8
+ 
+AIC = 110.8
+ 
+BIC = 115.8
+
+
+BICdiff =  95.3
+ 
+ 
+Correlation (Mixed Model)= -1.00
+ 
+Proportion of heterogeneity likely due to threshold effect = 1.00
+
+
+Interstudy variation in Sensitivity: ICC_SEN =  0.05, 95% CI = [ 0.00- 0.12]
+
+
+
+Interstudy variation in Sensitivity: MED_SEN =  0.60, 95% CI = [ 0.55- 0.69]
+
+ 
+Interstudy variation in Specificity: ICC_SPE =  0.50, 95% CI = [ 0.22- 0.78]
+
+ 
+ 
+Interstudy variation in Specificity: MED_SPE =  0.85, 95% CI = [ 0.73- 0.95]
+
+ 
+ 
+ROC Area, AUROC = 0.84 [0.81 - 0.87]
+
+
+Heterogeneity (Chi-square): LRT_Q = 90.145, df =2.00, LRT_p =0.000
+
+Inconsistency (I-square): LRT_I2 =  98, 95% CI = [ 96- 99]
+
+
+
+Parameter                   Estimate          95% CI
+
+Sensitivity                     0.77 [    0.70,    0.82]
+
+Specificity                     0.91 [    0.75,    0.97]
+
+Positive Likelihood Ratio        8.7 [     3.0,    25.7]
+
+Negative Likelihood Ratio       0.26 [    0.21,    0.32]
+
+Diagnostic Odds Ratio             34 [      12,      97]
+
+
+
+. *midas tp fp fn tn, id(studyid) bfor(dss) fordata  //forest plot
+. 
+. *------Table 2 (column 3)
+. *metandi tp fp fn tn //Non-convergence
+. metandi tp fp fn tn, nip(7)
+
+Refining starting values: 
+
+Iteration 0:   log likelihood = -59.840576  (not concave)
+Iteration 1:   log likelihood = -56.703733  (not concave)
+Iteration 2:   log likelihood = -53.443522  
+Iteration 3:   log likelihood = -52.073972  
+
+Performing gradient-based optimization: 
+
+Iteration 0:   log likelihood = -52.073972  
+Iteration 1:   log likelihood = -50.655112  
+Iteration 2:   log likelihood = -50.394968  
+Iteration 3:   log likelihood =  -50.38658  
+Iteration 4:   log likelihood = -50.386576  
+
+Meta-analysis of diagnostic accuracy
+
+Log likelihood   = -50.386576                     Number of studies =       10
+------------------------------------------------------------------------------
+             |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+Bivariate    |
+  E(logitSe) |    1.19234   .1802975                      .8389635    1.545717
+  E(logitSp) |   2.340719   .6343648                      1.097387    3.584051
+Var(logitSe) |   .1829838   .1284796                      .0462118    .7245568
+Var(logitSp) |   3.313294   1.886578                      1.085397    10.11419
+Corr(logits) |         -1          .                             .           .
+-------------+----------------------------------------------------------------
+HSROC        |
+      Lambda |   3.594303   .3658869                      2.877177    4.311428
+       Theta |   .6624347   .3991388                      -.119863    1.444732
+        beta |    1.44815   .3158769     4.58   0.000      .829043    2.067258
+     s2alpha |          0          .                             .           .
+     s2theta |   .7786393   .4327063                      .2620026     2.31402
+-------------+----------------------------------------------------------------
+Summary pt.  |
+          Se |   .7671593   .0322058                      .6982469    .8242942
+          Sp |   .9121937   .0508103                      .7497701     .972987
+         DOR |   34.22851   18.10251                      12.13979    96.50834
+         LR+ |   8.736948   4.814413                       2.96697    25.72802
+         LR- |   .2552535   .0277022                      .2063443    .3157556
+       1/LR- |   3.917673   .4251779                      3.167006    4.846269
+------------------------------------------------------------------------------
+Covariance between estimates of E(logitSe) & E(logitSp)    -.07761
+
+. 
+. *------ Figure 4 (top right)
+. metandiplot tp fp fn tn, graphregion(color(white)) legend(ring(0)       col(1) bplacement(6))
+
+. /*========================================================================================*/
+. ***Section 5.2
+. /*========================================================================================*/
+. *------Table 3 (column 2), Figure 5 (top left)
+. import delimited using "https://raw.githubusercontent.com/VNyaga/Metadta/master/RSM2023/Data/dementia.csv", delim(",")clear
+(5 vars, 14 obs)
+
+. metadta tp fp fn tn, studyid(study) sumtable(all)
+
+*********************************** Fitted model ***************************************
+    tp ~ binomial(se, tp + fn)
+    tn ~ binomial(sp, tn + fp)
+    logit(se) = mu_lse + studyid_lse
+    logit(sp) = mu_lsp + studyid_lsp
+    studyid_lse, studyid_lsp ~ biv.normal(0, tau2)
+    Number of observations = 14
+    Number of studies = 14
+
+****************************************************************************************
+
+****************************************************************************************
+
+Between-study heterogeneity statistics
+                           covar            rho
+                           -0.25            -0.60
+                           Tau.sq           I^2(%)
+Generalized                 0.11            59.43
+Sensitivity                 0.36            48.17
+Specificity                 0.48            78.26
+
+LR Test: RE vs FE model
+         Chi2        degrees of
+       statistic      freedom        p-val
+         91.40          3            0.0000
+
+****************************************************************************************
+            Marginal summary measures of test accuracy: Absolute measures
+****************************************************************************************
+
+------------------------------------------------------------------------------------
+     Effect | Proportion  SE(logit)  z(logit)            P>|z|     Lower     Upper  
+------------+-----------------------------------------------------------------------
+Sensitivity |       0.80       0.21      6.44             0.00      0.72      0.86  
+------------+-----------------------------------------------------------------------
+Specificity |       0.65       0.21      3.07             0.00      0.56      0.74  
+------------------------------------------------------------------------------------
+NOTE: H0: P = 0.5 vs. H1: P != 0.5
+****************************************************************************************
+            Study specific test accuracy: Absolute Measures
+****************************************************************************************
+
+                      |                 Sensitivity                |                 Specificity
+ Study                |      Estimate     [95% Conf. Interval]     |      Estimate     [95% Conf. Interval]
+----------------------+--------------------------------------------+--------------------------------------------
+ Galluzi 2010         |        0.82        0.60      0.95          |        0.60         0.43      0.74
+ Bjerke 2009          |        0.90        0.68      0.99          |        0.70         0.61      0.77
+ Zetterberg 2003      |        0.68        0.45      0.86          |        0.61         0.42      0.78
+ Hampel 2004          |        0.83        0.64      0.94          |        0.57         0.34      0.77
+ Chiasserini 2010     |        0.74        0.52      0.90          |        0.89         0.65      0.99
+ Hansson 2007         |        0.93        0.83      0.98          |        0.53         0.42      0.65
+ Blom 2009            |        0.64        0.35      0.87          |        0.36         0.13      0.65
+ Parnetti 2006        |        0.36        0.11      0.69          |        0.91         0.78      0.97
+ Shaw 2009            |        0.86        0.71      0.95          |        0.29         0.22      0.37
+ Hertze 2010          |        0.90        0.79      0.97          |        0.69         0.60      0.78
+ Monge-Argiles 2011   |        0.82        0.48      0.98          |        0.62         0.41      0.80
+ Papaliagkas 2009     |        1.00        0.48      1.00          |        0.77         0.63      0.88
+ Kester 2011          |        0.76        0.61      0.88          |        0.72         0.59      0.83
+ Vos 2013             |        0.68        0.58      0.78          |        0.67         0.58      0.75
+ Overall              |        0.80        0.72      0.86          |        0.65         0.56      0.74
+----------------------+--------------------------------------------+--------------------------------------------
+                      |                                            |  
+
+. 
+. *------Table 3 (column 3), Figure 5 (top middle)
+. midas tp fp fn tn, plot sroc(both) res(all) nip(1)  scheme(s1color) 
+
+
+
+
+
+
+SUMMARY DATA AND PERFORMANCE ESTIMATES
+
+ 
+Number of studies =  14
+ 
+Reference-positive Units =  436
+ 
+Reference-negative Units =  913
+ 
+Pretest Prob of Disease = 0.32
+ 
+
+Deviance = 165.6
+ 
+AIC = 175.6
+ 
+BIC = 182.3
+
+
+BICdiff =  81.4
+ 
+ 
+Correlation (Mixed Model)= -0.60
+ 
+Proportion of heterogeneity likely due to threshold effect = 0.36
+
+
+Interstudy variation in Sensitivity: ICC_SEN =  0.10, 95% CI = [ 0.00- 0.21]
+
+
+
+Interstudy variation in Sensitivity: MED_SEN =  0.64, 95% CI = [ 0.57- 0.75]
+
+ 
+Interstudy variation in Specificity: ICC_SPE =  0.13, 95% CI = [ 0.02- 0.23]
+
+ 
+ 
+Interstudy variation in Specificity: MED_SPE =  0.66, 95% CI = [ 0.60- 0.74]
+
+ 
+ 
+ROC Area, AUROC = 0.80 [0.76 - 0.83]
+
+
+Heterogeneity (Chi-square): LRT_Q = 40.135, df =2.00, LRT_p =0.000
+
+Inconsistency (I-square): LRT_I2 =  95, 95% CI = [ 91- 99]
+
+
+
+Parameter                   Estimate          95% CI
+
+Sensitivity                     0.80 [    0.72,    0.86]
+
+Specificity                     0.65 [    0.56,    0.74]
+
+Positive Likelihood Ratio        2.3 [     1.8,     2.9]
+
+Negative Likelihood Ratio       0.31 [    0.23,    0.42]
+
+Diagnostic Odds Ratio              7 [       5,      12]
+
+
+
+. *midas tp fp fn tn, id(studyid) bfor(dss) fordata  //forest plot
+. 
+. *------Table 3 (column 3)
+. metandi tp fp fn tn
+
+Refining starting values: 
+
+Iteration 0:   log likelihood = -86.511674  
+Iteration 1:   log likelihood = -83.059511  
+Iteration 2:   log likelihood = -82.856273  
+Iteration 3:   log likelihood =  -82.80334  
+
+Performing gradient-based optimization: 
+
+Iteration 0:   log likelihood =  -82.80334  
+Iteration 1:   log likelihood = -82.803331  
+Iteration 2:   log likelihood = -82.803331  
+
+Meta-analysis of diagnostic accuracy
+
+Log likelihood   = -82.803331                     Number of studies =       14
+------------------------------------------------------------------------------
+             |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+Bivariate    |
+  E(logitSe) |   1.370958   .2128247                      .9538295    1.788087
+  E(logitSp) |   .6368034   .2075006                      .2301097    1.043497
+Var(logitSe) |   .3590741   .2364583                      .0987754    1.305327
+Var(logitSp) |   .4824725   .2344757                      .1861226     1.25068
+Corr(logits) |   -.598757   .3097361                     -.9271298    .2497432
+-------------+----------------------------------------------------------------
+HSROC        |
+      Lambda |   2.067505   .2806059                      1.517527    2.617482
+       Theta |   .4422817   .2549149                     -.0573423    .9419056
+        beta |   .1476976   .3751036     0.39   0.694    -.5874919    .8828872
+     s2alpha |   .3340148   .2770121                        .06574    1.697078
+     s2theta |   .3327214   .1688127                      .1230855    .8994033
+-------------+----------------------------------------------------------------
+Summary pt.  |
+          Se |   .7975349   .0343654                      .7218847    .8566926
+          Sp |   .6540305   .0469521                      .5572749    .7395242
+         DOR |   7.446631   1.695519                      4.765959    11.63508
+         LR+ |   2.305218   .2864412                      1.806939    2.940901
+         LR- |   .3095652   .0478478                      .2286581    .4190999
+       1/LR- |   3.230338   .4992953                      2.386066    4.373342
+------------------------------------------------------------------------------
+Covariance between estimates of E(logitSe) & E(logitSp)  -.0182542
+
+. *------ Figure 5 (bottom right)
+. metandiplot tp fp fn tn, graphregion(color(white)) legend(ring(0)       col(1) bplacement(6))
+
+. 
+. /*========================================================================================*/
+. ***Section 5.3 
+. /*========================================================================================*/
+. *------Table 4 (column 2), Figure 6 (top left), 
+. import delimited using "https://raw.githubusercontent.com/VNyaga/Metadta/master/RSM2023/Data/ascus.csv", delim(",")clear
+(6 vars, 20 obs)
+
+. metadta tp fp fn tn test, studyid(studyid) nomc ///
+>         comparative sumtable(all) dp(2) nofplot
+
+*********************************** Fitted model ***************************************
+    tp ~ binomial(se, tp + fn)
+    tn ~ binomial(sp, tn + fp)
+    logit(se) = mu_lse + test + studyid_lse
+    logit(sp) = mu_lsp + test + studyid_lsp
+    studyid_lse, studyid_lsp ~ biv.normal(0, tau2)
+
+    Base levels
+
+        Variable -- Base Level
+        test -- RepC
+    Number of observations = 20
+    Number of studies = 10
+
+****************************************************************************************
+
+****************************************************************************************
+
+Between-study heterogeneity statistics
+                           covar            rho
+                           -0.11            -0.71
+                           Tau.sq           I^2(%)
+Generalized                 0.01                .
+Sensitivity                 0.24                .
+Specificity                 0.10                .
+
+LR Test: RE vs FE model
+         Chi2        degrees of
+       statistic      freedom        p-val
+        474.17          3            0.0000
+
+****************************************************************************************
+            Marginal summary measures of test accuracy: Absolute measures
+****************************************************************************************
+
+------------------------------------------------------------------------------------
+     Effect | Proportion  SE(logit)  z(logit)            P>|z|     Lower     Upper  
+------------+-----------------------------------------------------------------------
+            |                                                                       
+Sensitivity |                                                                       
+------------+-----------------------------------------------------------------------
+test        |                                                                       
+       RepC |       0.69       0.21      3.89             0.00      0.60      0.77  
+        HC2 |       0.92       0.26      9.50             0.00      0.88      0.95  
+            |                                                                       
+    Overall |       0.84       0.21      8.02             0.00      0.78      0.89  
+------------+-----------------------------------------------------------------------
+Specificity |                                                                       
+------------+-----------------------------------------------------------------------
+test        |                                                                       
+       RepC |       0.64       0.11      5.39             0.00      0.59      0.69  
+        HC2 |       0.64       0.11      5.38             0.00      0.59      0.69  
+            |                                                                       
+    Overall |       0.64       0.11      5.49             0.00      0.59      0.69  
+------------------------------------------------------------------------------------
+NOTE: H0: P = 0.5 vs. H1: P != 0.5
+
+****************************************************************************************
+            Marginal summary measures of test accuracy: Relative measures
+****************************************************************************************
+
+---------------------------------------------------------------------------------------------
+              Effect |  Rel Ratio    SE(lor)    z(lor)            P>|z|     Lower     Upper  
+---------------------+-----------------------------------------------------------------------
+Relative Sensitivity |                                                                       
+             Overall |       1.34       0.06      5.14             0.00      1.20      1.49  
+---------------------+-----------------------------------------------------------------------
+Relative Specificity |                                                                       
+             Overall |       1.00       0.02     -0.02             0.98      0.97      1.03  
+---------------------------------------------------------------------------------------------
+****************************************************************************************
+            Study specific test accuracy: Absolute Measures
+****************************************************************************************
+
+                   |                 Sensitivity                |                 Specificity
+ Study             |      Estimate     [95% Conf. Interval]     |      Estimate     [95% Conf. Interval]
+-------------------+--------------------------------------------+--------------------------------------------
+ RepC              |                                            |  
+ Andersson 2005    |        0.60        0.26      0.88          |        0.67         0.50      0.80
+ Bergeron 2000     |        0.67        0.35      0.90          |        0.72         0.62      0.80
+ Del Mistro 2010   |        0.74        0.54      0.89          |        0.72         0.68      0.75
+ Kulasingam 2002   |        0.77        0.56      0.91          |        0.70         0.63      0.75
+ Lytwyn 2000       |        0.67        0.22      0.96          |        0.57         0.41      0.71
+ Manos 1999        |        0.76        0.64      0.86          |        0.64         0.61      0.67
+ Monsonego 2008    |        0.40        0.21      0.61          |        0.90         0.85      0.94
+ Morin 2001        |        0.74        0.49      0.91          |        0.63         0.58      0.68
+ Silverloo 2009    |        0.71        0.53      0.85          |        0.71         0.63      0.78
+ Solomon 2001      |        0.85        0.80      0.89          |        0.45         0.43      0.47
+                   |                                            |  
+ Summary           |        0.69        0.60      0.77          |        0.64         0.59      0.69
+-------------------+--------------------------------------------+--------------------------------------------
+                   |                                            |  
+ HC2               |                                            |  
+ Andersson 2005    |        0.60        0.26      0.88          |        0.60         0.43      0.74
+ Bergeron 2000     |        0.83        0.52      0.98          |        0.62         0.51      0.71
+ Del Mistro 2010   |        0.93        0.77      0.99          |        0.79         0.75      0.82
+ Kulasingam 2002   |        0.88        0.70      0.98          |        0.53         0.46      0.59
+ Lytwyn 2000       |        0.80        0.28      0.99          |        0.63         0.49      0.76
+ Manos 1999        |        0.89        0.79      0.96          |        0.64         0.61      0.67
+ Monsonego 2008    |        0.92        0.73      0.99          |        0.40         0.32      0.47
+ Morin 2001        |        0.89        0.67      0.99          |        0.74         0.69      0.79
+ Silverloo 2009    |        0.94        0.81      0.99          |        0.55         0.47      0.64
+ Solomon 2001      |        1.00        0.98      1.00          |        0.48         0.46      0.51
+                   |                                            |  
+ Summary           |        0.92        0.88      0.95          |        0.64         0.59      0.69
+-------------------+--------------------------------------------+--------------------------------------------
+                   |                                            |  
+ Overall           |        0.84        0.78      0.89          |        0.64         0.59      0.69
+-------------------+--------------------------------------------+--------------------------------------------
+                   |                                            |  
+
+.         
+. *------Figure 7 (right) 
+. metadta tp fp fn tn test, studyid(studyid) nomc ///
+>         comparative sumtable(rr) dp(2) nosroc ///
+>         foptions(logscale outplot(rr) texts(2)  xlabel(0.3, 1, 2))      
+
+*********************************** Fitted model ***************************************
+    tp ~ binomial(se, tp + fn)
+    tn ~ binomial(sp, tn + fp)
+    logit(se) = mu_lse + test + studyid_lse
+    logit(sp) = mu_lsp + test + studyid_lsp
+    studyid_lse, studyid_lsp ~ biv.normal(0, tau2)
+
+    Base levels
+
+        Variable -- Base Level
+        test -- RepC
+    Number of observations = 20
+    Number of studies = 10
+
+****************************************************************************************
+
+****************************************************************************************
+
+Between-study heterogeneity statistics
+                           covar            rho
+                           -0.11            -0.71
+                           Tau.sq           I^2(%)
+Generalized                 0.01                .
+Sensitivity                 0.24                .
+Specificity                 0.10                .
+
+LR Test: RE vs FE model
+         Chi2        degrees of
+       statistic      freedom        p-val
+        474.17          3            0.0000
+
+****************************************************************************************
+            Marginal summary measures of test accuracy: Relative measures
+****************************************************************************************
+
+---------------------------------------------------------------------------------------------
+              Effect |  Rel Ratio    SE(lor)    z(lor)            P>|z|     Lower     Upper  
+---------------------+-----------------------------------------------------------------------
+Relative Sensitivity |                                                                       
+             Overall |       1.34       0.06      5.14             0.00      1.20      1.49  
+---------------------+-----------------------------------------------------------------------
+Relative Specificity |                                                                       
+             Overall |       1.00       0.02     -0.02             0.98      0.97      1.03  
+---------------------------------------------------------------------------------------------
+****************************************************************************************
+            Study specific test accuracy: Relative Measures
+****************************************************************************************
+
+                   |             Relative Sensitivity           |             Relative Specificity
+ Study             |      Estimate     [95% Conf. Interval]     |      Estimate     [95% Conf. Interval]
+-------------------+--------------------------------------------+--------------------------------------------
+ Andersson 2005    |        1.00        0.47      2.14          |        0.89         0.63      1.24
+ Bergeron 2000     |        1.25        0.76      2.21          |        0.86         0.70      1.05
+ Del Mistro 2010   |        1.26        1.00      1.70          |        1.10         1.03      1.17
+ Kulasingam 2002   |        1.15        0.88      1.56          |        0.76         0.65      0.88
+ Lytwyn 2000       |        1.20        0.51      2.83          |        1.12         0.81      1.58
+ Manos 1999        |        1.17        1.00      1.41          |        1.01         0.94      1.08
+ Monsonego 2008    |        2.29        1.49      3.96          |        0.44         0.36      0.52
+ Morin 2001        |        1.21        0.88      1.78          |        1.18         1.06      1.31
+ Silverloo 2009    |        1.34        1.09      1.77          |        0.78         0.65      0.93
+ Solomon 2001      |        1.17        1.12      1.24          |        1.08         1.01      1.16
+ Overall           |        1.34        1.20      1.49          |        1.00         0.97      1.03
+-------------------+--------------------------------------------+--------------------------------------------
+                   |                                            |  
+
+. 
+. /*========================================================================================*/
+. ***Section 6 
+. /*========================================================================================*/
+. import delimited using "https://raw.githubusercontent.com/VNyaga/Metadta/master/RSM2023/Data/hpvcyto-wide.csv", delim(",")clear
+(13 vars, 19 obs)
+
+. 
+. *------Figure 8
+. *Install command        
+. ssc install netplot     
+checking netplot consistency and verifying not already installed...
+all files already exist and are up to date.
+
+. netplot test2 test1, label arrows type(circle)  
+Calculating coordinates...
+Drawing layout...
+
+. 
+. *------Stratified analysis (Comparative studies stratified by index)
+. import delimited using "https://raw.githubusercontent.com/VNyaga/Metadta/master/RSM2023/Data/hpvcyto-long1.csv", delim(",")clear
+(10 vars, 38 obs)
+
+. 
+. bys index:metadta tp fp fn tn test, nomc studyid(studyid) ///
+>         comparative sumtable(all) ref(HC2,top)  ///
+>         foptions(outplot(rr) texts(1.75) ///
+>         xlabel(0.80, 0.90, 1, 1.11, 2) logscale ///
+>          astext(70))
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-> index = CC
+
+*********************************** Fitted model ***************************************
+    tp ~ binomial(se, tp + fn)
+    tn ~ binomial(sp, tn + fp)
+    logit(se) = mu_lse + test + studyid_lse
+    logit(sp) = mu_lsp + test + studyid_lsp
+    studyid_lse, studyid_lsp ~ biv.normal(0, tau2)
+
+    Base levels
+
+        Variable -- Base Level
+        test -- HC2
+    Number of observations = 18
+    Number of studies = 9
+
+****************************************************************************************
+
+****************************************************************************************
+
+Between-study heterogeneity statistics
+                           covar            rho
+                            0.02             0.05
+                           Tau.sq           I^2(%)
+Generalized                 0.13                .
+Sensitivity                 0.53                .
+Specificity                 0.24                .
+
+LR Test: RE vs FE model
+         Chi2        degrees of
+       statistic      freedom        p-val
+       1106.95          3            0.0000
+
+****************************************************************************************
+            Marginal summary measures of test accuracy: Absolute measures
+****************************************************************************************
+
+------------------------------------------------------------------------------------
+     Effect | Proportion  SE(logit)  z(logit)            P>|z|     Lower     Upper  
+------------+-----------------------------------------------------------------------
+            |                                                                       
+Sensitivity |                                                                       
+------------+-----------------------------------------------------------------------
+test        |                                                                       
+        HC2 |       0.90       0.28      7.93             0.00      0.84      0.94  
+         CC |       0.59       0.26      1.43             0.15      0.47      0.71  
+            |                                                                       
+    Overall |       0.78       0.26      4.99             0.00      0.69      0.86  
+------------+-----------------------------------------------------------------------
+Specificity |                                                                       
+------------+-----------------------------------------------------------------------
+test        |                                                                       
+        HC2 |       0.90       0.16     13.36             0.00      0.87      0.93  
+         CC |       0.96       0.17     18.72             0.00      0.94      0.97  
+            |                                                                       
+    Overall |       0.93       0.16     16.12             0.00      0.91      0.95  
+------------------------------------------------------------------------------------
+NOTE: H0: P = 0.5 vs. H1: P != 0.5
+
+****************************************************************************************
+            Marginal summary measures of test accuracy: Relative measures
+****************************************************************************************
+
+---------------------------------------------------------------------------------------------
+              Effect |  Rel Ratio    SE(lor)    z(lor)            P>|z|     Lower     Upper  
+---------------------+-----------------------------------------------------------------------
+Relative Sensitivity |                                                                       
+             Overall |       1.52       0.09      4.87             0.00      1.28      1.80  
+---------------------+-----------------------------------------------------------------------
+Relative Specificity |                                                                       
+             Overall |       0.94       0.01     -6.43             0.00      0.92      0.96  
+---------------------------------------------------------------------------------------------
+****************************************************************************************
+            Study specific test accuracy: Relative Measures
+****************************************************************************************
+
+                            |             Relative Sensitivity           |             Relative Specificity
+ Study                      |      Estimate     [95% Conf. Interval]     |      Estimate     [95% Conf. Interval]
+----------------------------+--------------------------------------------+--------------------------------------------
+ Salmeron J 2003            |        1.57        1.34      1.89          |        0.94         0.93      0.94
+ Petry KU 2003              |        2.25        1.68      3.24          |        0.97         0.97      0.98
+ Mahmud SM 2012             |        1.11        0.85      1.48          |        0.95         0.93      0.98
+ Gravitt PE 2010            |        1.31        0.92      1.88          |        1.06         1.04      1.08
+ Ferreccio C 2013           |        2.76        2.13      3.71          |        0.92         0.91      0.93
+ de Cremoux P 2003          |        0.97        0.86      1.17          |        0.86         0.84      0.89
+ Cuzick J 2003              |        1.16        1.06      1.31          |        0.97         0.97      0.98
+ Clavel C 2001              |        1.47        1.26      1.86          |        0.90         0.89      0.91
+ Cardenas-Turanzas M 2008   |        1.57        0.84      3.15          |        1.00         0.97      1.02
+ Overall                    |        1.52        1.28      1.80          |        0.94         0.92      0.96
+----------------------------+--------------------------------------------+--------------------------------------------
+                            |                                            |  
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-> index = LBC
+
+*********************************** Fitted model ***************************************
+    tp ~ binomial(se, tp + fn)
+    tn ~ binomial(sp, tn + fp)
+    logit(se) = mu_lse + test + studyid_lse
+    logit(sp) = mu_lsp + test + studyid_lsp
+    studyid_lse, studyid_lsp ~ biv.normal(0, tau2)
+
+    Base levels
+
+        Variable -- Base Level
+        test -- LBC
+    Number of observations = 20
+    Number of studies = 10
+
+****************************************************************************************
+
+****************************************************************************************
+
+Between-study heterogeneity statistics
+                           covar            rho
+                           -0.14            -0.48
+                           Tau.sq           I^2(%)
+Generalized                 0.07                .
+Sensitivity                 0.40                .
+Specificity                 0.21                .
+
+LR Test: RE vs FE model
+         Chi2        degrees of
+       statistic      freedom        p-val
+       3226.51          3            0.0000
+
+****************************************************************************************
+            Marginal summary measures of test accuracy: Absolute measures
+****************************************************************************************
+
+------------------------------------------------------------------------------------
+     Effect | Proportion  SE(logit)  z(logit)            P>|z|     Lower     Upper  
+------------+-----------------------------------------------------------------------
+            |                                                                       
+Sensitivity |                                                                       
+------------+-----------------------------------------------------------------------
+test        |                                                                       
+        LBC |       0.80       0.22      6.43             0.00      0.73      0.86  
+        HC2 |       0.95       0.24     12.08             0.00      0.92      0.97  
+            |                                                                       
+    Overall |       0.90       0.22      9.94             0.00      0.85      0.93  
+------------+-----------------------------------------------------------------------
+Specificity |                                                                       
+------------+-----------------------------------------------------------------------
+test        |                                                                       
+        LBC |       0.90       0.15     15.30             0.00      0.88      0.93  
+        HC2 |       0.87       0.15     12.79             0.00      0.83      0.90  
+            |                                                                       
+    Overall |       0.89       0.15     14.08             0.00      0.85      0.91  
+------------------------------------------------------------------------------------
+NOTE: H0: P = 0.5 vs. H1: P != 0.5
+
+****************************************************************************************
+            Marginal summary measures of test accuracy: Relative measures
+****************************************************************************************
+
+---------------------------------------------------------------------------------------------
+              Effect |  Rel Ratio    SE(lor)    z(lor)            P>|z|     Lower     Upper  
+---------------------+-----------------------------------------------------------------------
+Relative Sensitivity |                                                                       
+             Overall |       1.18       0.03      4.82             0.00      1.10      1.26  
+---------------------+-----------------------------------------------------------------------
+Relative Specificity |                                                                       
+             Overall |       0.96       0.01     -7.21             0.00      0.95      0.97  
+---------------------------------------------------------------------------------------------
+****************************************************************************************
+            Study specific test accuracy: Relative Measures
+****************************************************************************************
+
+                     |             Relative Sensitivity           |             Relative Specificity
+ Study               |      Estimate     [95% Conf. Interval]     |      Estimate     [95% Conf. Interval]
+---------------------+--------------------------------------------+--------------------------------------------
+ Wu R 2010           |        1.33        1.00      1.89          |        0.89         0.87      0.90
+ Ronco G 2006        |        1.32        1.16      1.55          |        0.98         0.98      0.99
+ Pan Q 2003          |        1.01        0.93      1.10          |        1.11         1.08      1.15
+ Moy LM 2010         |        1.17        1.09      1.26          |        0.97         0.96      0.98
+ Monsonego J 2011    |        1.40        1.24      1.63          |        0.94         0.93      0.95
+ Li N 2009           |        0.97        0.87      1.08          |        1.01         0.99      1.03
+ de Cremoux P 2003   |        1.06        0.92      1.32          |        0.89         0.86      0.92
+ Clavel C 2001       |        1.14        1.04      1.27          |        0.92         0.91      0.94
+ Bigras G 2005       |        1.67        1.41      2.05          |        0.95         0.95      0.96
+ Belinson JL 2003    |        1.10        1.05      1.15          |        0.98         0.97      1.00
+ Overall             |        1.18        1.10      1.26          |        0.96         0.95      0.97
+---------------------+--------------------------------------------+--------------------------------------------
+                     |                                            |  
+
+. 
+. *------Figure 9
+. graph combine fplot2 fplot1, col(1)  xcommon graphregion(col(white))
+
+. 
+. *------cb-network
+. import delimited using "https://raw.githubusercontent.com/VNyaga/Metadta/master/RSM2023/Data/hpvcyto-wide.csv", delim(",")clear
+(13 vars, 19 obs)
+
+. 
+. *------Figure 10
+. metadta tp2 fp2 fn2 tn2 tp1 fp1 fn1 tn1 test1 test2, studyid(studyid) ///
+>         cbnetwork cov(,identity) progress sumtable(all) ///
+>         foptions(outplot(rr) texts(1.75) ///
+>         xlabel(0.80, 0.90, 1, 1.11, 2) logscale ///
+>         lcols(age location) astext(70))
+
+*********************************** Fitted model ***************************************
+    tp2 ~ binomial(se, tp2 + fn2)
+    tn2 ~ binomial(sp, tn2 + fp2)
+    logit(se) = mu_lse + Ipair + test1 + studyid_lse
+    logit(sp) = mu_lsp + Ipair + test1 + studyid_lsp
+    studyid_lse, studyid_lsp ~ biv.normal(0, tau2)
+    Ipair = 0 if 1st set
+    Ipair = 1 if 2nd set
+    Ipair_lse, Ipair_lsp ~ N(0, Ipair.sigma2)
+
+    Base levels
+
+        Variable -- Base Level
+        test1 -- LBC
+    Number of observations = 19
+    Number of studies = 17
+
+Refining starting values: 
+
+Iteration 0:   log likelihood = -495.57437  (not concave)
+Iteration 1:   log likelihood = -487.68105  (not concave)
+Iteration 2:   log likelihood = -474.49579  
+
+Performing gradient-based optimization: 
+
+Iteration 0:   log likelihood = -474.49579  
+Iteration 1:   log likelihood = -473.87555  (not concave)
+Iteration 2:   log likelihood = -469.13667  (not concave)
+Iteration 3:   log likelihood = -462.53967  (not concave)
+Iteration 4:   log likelihood = -449.11495  (not concave)
+Iteration 5:   log likelihood = -448.28904  (not concave)
+Iteration 6:   log likelihood = -437.94803  (not concave)
+Iteration 7:   log likelihood = -416.65944  
+Iteration 8:   log likelihood = -415.95814  
+Iteration 9:   log likelihood = -415.72714  
+Iteration 10:  log likelihood = -412.85597  (not concave)
+Iteration 11:  log likelihood = -409.22839  (not concave)
+Iteration 12:  log likelihood = -406.60269  (not concave)
+Iteration 13:  log likelihood = -406.50393  (not concave)
+Iteration 14:  log likelihood = -406.40844  (not concave)
+Iteration 15:  log likelihood = -406.36909  (not concave)
+Iteration 16:  log likelihood = -406.14448  
+Iteration 17:  log likelihood = -405.91375  
+Iteration 18:  log likelihood = -405.90532  
+Iteration 19:  log likelihood =  -405.9051  
+Iteration 20:  log likelihood =  -405.9051  
+
+Mixed-effects logistic regression               Number of obs     =         76
+Binomial variable: __000007
+
+----------------------------------------------------------------------------
+                |     No. of       Observations per Group       Integration
+ Group Variable |     Groups    Minimum    Average    Maximum      Points
+----------------+-----------------------------------------------------------
+        studyid |         17          4        4.5          8           7
+       __000026 |         34          2        2.2          4           7
+----------------------------------------------------------------------------
+
+                                                Wald chi2(6)      =     605.62
+Log likelihood =  -405.9051                     Prob > chi2       =     0.0000
+
+-------------------------------------------------------------------------------------
+           __000006 |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+--------------------+----------------------------------------------------------------
+           __000004 |   1.147243   .2348725     4.88   0.000     .6869011    1.607584
+                    |
+__000026#c.__000004 |
+                No  |   1.779636   .2649762     6.72   0.000     1.260292    2.298979
+                    |
+   test1#c.__000004 |
+                CC  |  -.3595672   .2031593    -1.77   0.077     -.757752    .0386177
+                    |
+           __000005 |   2.664893   .1808273    14.74   0.000     2.310478    3.019308
+                    |
+__000026#c.__000005 |
+                No  |  -.5807184   .2246007    -2.59   0.010    -1.020928   -.1405092
+                    |
+   test1#c.__000005 |
+                CC  |   .0856075   .0361126     2.37   0.018     .0148281    .1563869
+-------------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------
+  Random-effects Parameters  |   Estimate   Std. Err.     [95% Conf. Interval]
+-----------------------------+------------------------------------------------
+studyid: Unstructured        |
+               var(__000004) |   .2706157   .2313175      .0506712    1.445256
+               var(__000005) |   .1214644   .2081965      .0042213    3.495057
+      cov(__000004,__000005) |  -.1389408   .1311119     -.3959154    .1180338
+-----------------------------+------------------------------------------------
+__000026: Identity           |
+      var(__000004 __000005) |   .4242508   .2015625      .1671917    1.076541
+------------------------------------------------------------------------------
+LR test vs. logistic model: chi2(4) = 5512.32             Prob > chi2 = 0.0000
+
+Note: LR test is conservative and provided only for reference.
+
+****************************************************************************************
+
+****************************************************************************************
+
+Between-study heterogeneity statistics
+                           covar            rho
+                           -0.05            -0.40
+                           Tau.sq           I^2(%)
+Generalized                 0.01                .
+Sensitivity                 0.12                .
+Specificity                 0.13                .
+
+LR Test: RE vs FE model
+         Chi2        degrees of
+       statistic      freedom        p-val
+       5512.32          3            0.0000
+
+****************************************************************************************
+            Marginal summary measures of test accuracy: Absolute measures
+****************************************************************************************
+
+------------------------------------------------------------------------------------
+     Effect | Proportion  SE(logit)  z(logit)            P>|z|     Lower     Upper  
+------------+-----------------------------------------------------------------------
+            |                                                                       
+Sensitivity |                                                                       
+------------+-----------------------------------------------------------------------
+test1       |                                                                       
+        LBC |       0.88       0.21      9.86             0.00      0.84      0.92  
+         CC |       0.84       0.21      7.85             0.00      0.78      0.89  
+            |                                                                       
+    Overall |       0.87       0.18     10.16             0.00      0.82      0.90  
+------------+-----------------------------------------------------------------------
+Specificity |                                                                       
+------------+-----------------------------------------------------------------------
+test1       |                                                                       
+        LBC |       0.91       0.14     16.78             0.00      0.89      0.93  
+         CC |       0.92       0.14     17.34             0.00      0.90      0.94  
+            |                                                                       
+    Overall |       0.92       0.14     17.18             0.00      0.89      0.94  
+------------------------------------------------------------------------------------
+NOTE: H0: P = 0.5 vs. H1: P != 0.5
+
+****************************************************************************************
+            Marginal summary measures of test accuracy: Relative measures
+****************************************************************************************
+
+---------------------------------------------------------------------------------------------
+              Effect |  Rel Ratio    SE(lor)    z(lor)            P>|z|     Lower     Upper  
+---------------------+-----------------------------------------------------------------------
+                     |                                                                       
+Relative Sensitivity |                                                                       
+---------------------+-----------------------------------------------------------------------
+test1                |                                                                       
+                 LBC |       1.25       0.05      4.26             0.00      1.13      1.39  
+                  CC |       1.35       0.07      4.33             0.00      1.18      1.55  
+                     |                                                                       
+             Overall |       1.29       0.06      4.59             0.00      1.16      1.44  
+---------------------+-----------------------------------------------------------------------
+Relative Specificity |                                                                       
+---------------------+-----------------------------------------------------------------------
+test1                |                                                                       
+                 LBC |       0.95       0.02     -2.41             0.02      0.91      0.99  
+                  CC |       0.95       0.02     -2.41             0.02      0.92      0.99  
+                     |                                                                       
+             Overall |       0.95       0.02     -2.41             0.02      0.92      0.99  
+---------------------------------------------------------------------------------------------
+
+****************************************************************************************
+
+Wald-type test for nonlinear hypothesis
+
+    H0: All (log)RR equal vs. H1: Some (log)RR different
+
+-----------------------------------------------------
+              Effect |     chi2        df         p  
+---------------------+-------------------------------
+Relative Sensitivity |                               
+               test1 |     2.75         1    0.0973  
+Relative Specificity |                               
+               test1 |     2.90         1    0.0888  
+-----------------------------------------------------
+****************************************************************************************
+            Study specific test accuracy: Relative Measures
+****************************************************************************************
+
+                            |             Relative Sensitivity           |             Relative Specificity
+ Study                      |      Estimate     [95% Conf. Interval]     |      Estimate     [95% Conf. Interval]
+----------------------------+--------------------------------------------+--------------------------------------------
+ LBC                        |                                            |  
+ Belinson JL 2003           |        1.10        1.05      1.15          |        0.98         0.97      1.00
+ Bigras G 2005              |        1.67        1.41      2.05          |        0.95         0.95      0.96
+ Clavel C 2001              |        1.14        1.04      1.27          |        0.92         0.91      0.94
+ Li N 2009                  |        0.97        0.87      1.08          |        1.01         0.99      1.03
+ Monsonego J 2011           |        1.40        1.24      1.63          |        0.94         0.93      0.95
+ Moy LM 2010                |        1.17        1.09      1.26          |        0.97         0.96      0.98
+ Pan Q 2003                 |        1.01        0.93      1.10          |        1.11         1.08      1.15
+ Ronco G 2006               |        1.32        1.16      1.55          |        0.98         0.98      0.99
+ Wu R 2010                  |        1.33        1.00      1.89          |        0.89         0.87      0.90
+ de Cremoux P 2003          |        1.06        0.92      1.32          |        0.89         0.86      0.92
+                            |                                            |  
+ Summary                    |        1.25        1.13      1.39          |        0.95         0.91      0.99
+----------------------------+--------------------------------------------+--------------------------------------------
+                            |                                            |  
+ CC                         |                                            |  
+ Cardenas-Turanzas M 2008   |        1.57        0.84      3.15          |        1.00         0.97      1.02
+ Clavel C 2001              |        1.47        1.26      1.86          |        0.90         0.89      0.91
+ Cuzick J 2003              |        1.16        1.06      1.31          |        0.97         0.97      0.98
+ Ferreccio C 2013           |        2.76        2.13      3.71          |        0.92         0.91      0.93
+ Gravitt PE 2010            |        1.31        0.92      1.88          |        1.06         1.04      1.08
+ Mahmud SM 2012             |        1.11        0.85      1.48          |        0.95         0.93      0.98
+ Petry KU 2003              |        2.25        1.68      3.24          |        0.97         0.97      0.98
+ Salmeron J 2003            |        1.57        1.34      1.89          |        0.94         0.93      0.94
+ de Cremoux P 2003          |        0.97        0.86      1.17          |        0.86         0.84      0.89
+                            |                                            |  
+ Summary                    |        1.35        1.18      1.55          |        0.95         0.92      0.99
+----------------------------+--------------------------------------------+--------------------------------------------
+                            |                                            |  
+ Overall                    |        1.29        1.16      1.44          |        0.95         0.92      0.99
+----------------------------+--------------------------------------------+--------------------------------------------
+                            |                                            |  
+
+. 
+. *------ab-network
+. import delimited using "https://raw.githubusercontent.com/VNyaga/Metadta/master/RSM2023/Data/hpvcyto-long2.csv", delim(",")clear
+(10 vars, 37 obs)
+
+. metadta tp fp fn tn test, studyid(studyid) progress ///
+>         abnetwork cov(,identity) ref(HC2, top) sumtable(all)  ///
+>         foptions(outplot(abs) texts(1.75) ///
+>         xlabel(0, 0.5, 1) ///
+>         lcols(age location) astext(70))
+
+*********************************** Fitted model ***************************************
+    tp ~ binomial(se, tp + fn)
+    tn ~ binomial(sp, tn + fp)
+    logit(se) = mu.test_lse + + studyid_lse
+    logit(sp) = mu.test_lsp + + studyid_lsp
+    studyid_lse, studyid_lsp ~ biv.normal(0, tau2)
+    test_lse, test_lsp ~ N(0, test.sigma2)
+
+    Base levels
+
+        Variable -- Base Level
+        test -- HC2
+    Number of observations = 37
+    Number of studies = 17
+    Number of tests = 3
+
+Refining starting values: 
+
+Iteration 0:   log likelihood =  -404.2899  (not concave)
+Iteration 1:   log likelihood = -398.43291  
+Iteration 2:   log likelihood = -394.86169  
+
+Performing gradient-based optimization: 
+
+Iteration 0:   log likelihood = -394.86169  (not concave)
+Iteration 1:   log likelihood = -389.93472  
+Iteration 2:   log likelihood = -388.93918  
+Iteration 3:   log likelihood = -388.81347  (not concave)
+Iteration 4:   log likelihood = -388.67847  (not concave)
+Iteration 5:   log likelihood =  -388.6595  
+Iteration 6:   log likelihood = -388.65654  (not concave)
+Iteration 7:   log likelihood = -388.65536  (not concave)
+Iteration 8:   log likelihood = -388.65521  
+Hessian is not negative semidefinite
+
+Refining starting values: 
+
+Iteration 0:   log likelihood =  -404.2899  (not concave)
+Iteration 1:   log likelihood = -398.43291  
+Iteration 2:   log likelihood = -394.86169  
+Iteration 3:   log likelihood = -394.30113  
+Iteration 4:   log likelihood = -394.64006  
+Iteration 5:   log likelihood = -394.21212  
+Iteration 6:   log likelihood = -395.54135  (not concave)
+Iteration 7:   log likelihood = -395.45907  (not concave)
+Iteration 8:   log likelihood = -395.49924  (not concave)
+Iteration 9:   log likelihood = -395.51628  (not concave)
+Iteration 10:  log likelihood = -395.58861  (not concave)
+Iteration 11:  log likelihood = -396.47532  (not concave)
+Iteration 12:  log likelihood = -396.46616  (not concave)
+Iteration 13:  log likelihood =  -396.6207  (not concave)
+Iteration 14:  log likelihood = -396.64823  (not concave)
+Iteration 15:  log likelihood = -398.43457  (not concave)
+Iteration 16:  log likelihood = -398.47879  (not concave)
+Iteration 17:  log likelihood =  -398.5731  (not concave)
+Iteration 18:  log likelihood = -398.75154  (not concave)
+Iteration 19:  log likelihood = -398.76489  (not concave)
+Iteration 20:  log likelihood = -398.96434  
+
+Performing gradient-based optimization: 
+
+Iteration 0:   log likelihood = -398.96434  (not concave)
+Iteration 1:   log likelihood = -393.12315  
+Iteration 2:   log likelihood = -389.94954  
+Iteration 3:   log likelihood = -389.93891  
+Iteration 4:   log likelihood = -388.91445  (not concave)
+Iteration 5:   log likelihood = -388.79407  (not concave)
+numerical derivatives are approximate
+nearby values are missing
+Iteration 6:   log likelihood = -388.74535  (not concave)
+Iteration 7:   log likelihood = -388.74519  (not concave)
+numerical derivatives are approximate
+nearby values are missing
+Iteration 8:   log likelihood =  -388.7448  (not concave)
+numerical derivatives are approximate
+nearby values are missing
+Iteration 9:   log likelihood = -388.74419  (not concave)
+numerical derivatives are approximate
+nearby values are missing
+numerical derivatives are approximate
+nearby values are missing
+Hessian is not negative semidefinite
+
+Refining starting values: 
+
+Iteration 0:   log likelihood =  -404.2899  (not concave)
+Iteration 1:   log likelihood = -398.43291  
+Iteration 2:   log likelihood = -394.86169  
+Iteration 3:   log likelihood = -394.30113  
+Iteration 4:   log likelihood = -394.64006  
+Iteration 5:   log likelihood = -394.21212  
+Iteration 6:   log likelihood = -395.54135  (not concave)
+Iteration 7:   log likelihood = -395.45907  (not concave)
+Iteration 8:   log likelihood = -395.49924  (not concave)
+Iteration 9:   log likelihood = -395.51628  (not concave)
+Iteration 10:  log likelihood = -395.58861  (not concave)
+Iteration 11:  log likelihood = -396.47532  (not concave)
+Iteration 12:  log likelihood = -396.46616  (not concave)
+Iteration 13:  log likelihood =  -396.6207  (not concave)
+Iteration 14:  log likelihood = -396.64823  (not concave)
+Iteration 15:  log likelihood = -398.43457  (not concave)
+Iteration 16:  log likelihood = -398.47879  (not concave)
+Iteration 17:  log likelihood =  -398.5731  (not concave)
+Iteration 18:  log likelihood = -398.75154  (not concave)
+Iteration 19:  log likelihood = -398.76489  (not concave)
+Iteration 20:  log likelihood = -398.96434  (not concave)
+Iteration 21:  log likelihood = -399.03406  (not concave)
+Iteration 22:  log likelihood = -399.04815  (not concave)
+Iteration 23:  log likelihood = -399.64816  (not concave)
+Iteration 24:  log likelihood = -399.71938  (not concave)
+Iteration 25:  log likelihood = -400.09337  (not concave)
+Iteration 26:  log likelihood = -400.69614  (not concave)
+Iteration 27:  log likelihood = -400.82442  (not concave)
+Iteration 28:  log likelihood =   -401.594  (not concave)
+Iteration 29:  log likelihood = -403.17682  (not concave)
+Iteration 30:  log likelihood = -404.06973  
+
+Performing gradient-based optimization: 
+
+Iteration 0:   log likelihood = -404.06973  (not concave)
+Iteration 1:   log likelihood = -396.62432  (not concave)
+Iteration 2:   log likelihood = -391.26376  (not concave)
+Iteration 3:   log likelihood = -389.70577  
+Iteration 4:   log likelihood = -389.22179  
+Iteration 5:   log likelihood = -388.84664  (not concave)
+Iteration 6:   log likelihood = -388.70541  (not concave)
+Iteration 7:   log likelihood = -388.69126  (not concave)
+Iteration 8:   log likelihood = -388.69119  (not concave)
+Iteration 9:   log likelihood = -388.69034  
+Hessian is not negative semidefinite
+
+Refining starting values: 
+
+Iteration 0:   log likelihood =  -404.2899  
+Iteration 1:   log likelihood = -392.89417  
+Iteration 2:   log likelihood = -392.11815  (not concave)
+Iteration 3:   log likelihood =   -391.963  
+Iteration 4:   log likelihood = -392.99595  
+Iteration 5:   log likelihood = -394.16298  
+Iteration 6:   log likelihood = -395.84877  
+Iteration 7:   log likelihood = -397.97414  
+Iteration 8:   log likelihood = -399.64926  (not concave)
+Iteration 9:   log likelihood = -401.36486  (not concave)
+Iteration 10:  log likelihood = -402.52024  (not concave)
+Iteration 11:  log likelihood = -403.47531  (not concave)
+Iteration 12:  log likelihood =  -404.2731  (not concave)
+Iteration 13:  log likelihood = -404.56014  (not concave)
+Iteration 14:  log likelihood = -405.47386  
+Iteration 15:  log likelihood = -406.60284  (not concave)
+Iteration 16:  log likelihood = -406.80177  (not concave)
+Iteration 17:  log likelihood = -407.64944  (not concave)
+Iteration 18:  log likelihood =  -409.6655  (not concave)
+Iteration 19:  log likelihood =  -410.8725  (not concave)
+Iteration 20:  log likelihood = -412.02588  (not concave)
+Iteration 21:  log likelihood = -412.52723  (not concave)
+Iteration 22:  log likelihood = -413.20865  (not concave)
+Iteration 23:  log likelihood = -413.73041  (not concave)
+Iteration 24:  log likelihood = -414.52011  (not concave)
+Iteration 25:  log likelihood = -415.35812  (not concave)
+Iteration 26:  log likelihood = -416.50476  (not concave)
+Iteration 27:  log likelihood = -417.25529  (not concave)
+Iteration 28:  log likelihood = -418.04701  (not concave)
+Iteration 29:  log likelihood = -419.39802  (not concave)
+Iteration 30:  log likelihood = -420.02008  
+
+Performing gradient-based optimization: 
+
+Iteration 0:   log likelihood = -420.02008  (not concave)
+Iteration 1:   log likelihood = -406.37855  (not concave)
+Iteration 2:   log likelihood =  -400.9681  (not concave)
+Iteration 3:   log likelihood = -394.47591  (not concave)
+Iteration 4:   log likelihood = -389.41159  (not concave)
+Iteration 5:   log likelihood = -388.79948  
+Iteration 6:   log likelihood = -388.73321  
+Iteration 7:   log likelihood = -388.65351  
+Iteration 8:   log likelihood =  -388.6385  
+Iteration 9:   log likelihood = -388.63517  
+Iteration 10:  log likelihood = -388.63437  
+Iteration 11:  log likelihood =  -388.6342  
+Iteration 12:  log likelihood = -388.63418  
+numerical derivatives are approximate
+nearby values are missing
+numerical derivatives are approximate
+nearby values are missing
+Hessian is not negative semidefinite
+Model could not converge after 4 attempts with different options. Try fitting a simpler model
+r(430);
+
+end of do-file
+
+r(430);
+
+. graph export "C:\DATA\WIV\Projects\Stata\Metadta\Graphs\figure10RSM.tif", as(tif) name("fplot")
+(file C:\DATA\WIV\Projects\Stata\Metadta\Graphs\figure10RSM.tif written in TIFF format)
+
+. br
+
+. br
+
+. sort test study
+
+. br
+
+. clear
+
+. ed
+
+. *(9 variables, 36 observations pasted into data editor)
+
+. do "C:\Users\viny64\AppData\Local\Temp\STD5058_000000.tmp"
+
+. metadta tp fp fn tn test, studyid(studyid) progress ///
+>         abnetwork cov(,independent) ref(HC2, top) sumtable(all)  ///
+>         foptions(outplot(abs) texts(1.75) ///
+>         xlabel(0, 0.5, 1) ///
+>         lcols(age location) astext(70))
+
+*********************************** Fitted model ***************************************
+    tp ~ binomial(se, tp + fn)
+    tn ~ binomial(sp, tn + fp)
+    logit(se) = mu.test_lse + + studyid_lse
+    logit(sp) = mu.test_lsp + + studyid_lsp
+    studyid_lse, studyid_lsp ~ biv.normal(0, tau2)
+    test_lse ~ N(0, test_lse.sigma2)
+    test_lsp ~ N(0, test_lsp.sigma2)
+
+    Base levels
+
+        Variable -- Base Level
+        test -- HC2
+    Number of observations = 36
+    Number of studies = 17
+    Number of tests = 3
+
+Refining starting values: 
+
+Iteration 0:   log likelihood = -402.52309  (not concave)
+Iteration 1:   log likelihood = -394.56589  (not concave)
+Iteration 2:   log likelihood =  -389.8475  
+
+Performing gradient-based optimization: 
+
+Iteration 0:   log likelihood =  -389.8475  (not concave)
+Iteration 1:   log likelihood = -384.15093  
+Iteration 2:   log likelihood = -383.11228  (not concave)
+Iteration 3:   log likelihood = -383.06954  (not concave)
+Iteration 4:   log likelihood = -383.06392  (not concave)
+Iteration 5:   log likelihood = -383.06279  (not concave)
+Iteration 6:   log likelihood = -383.06246  (not concave)
+Iteration 7:   log likelihood =  -383.0624  (not concave)
+Iteration 8:   log likelihood = -382.91526  (not concave)
+Iteration 9:   log likelihood = -382.91231  (not concave)
+Iteration 10:  log likelihood = -382.91009  (not concave)
+Hessian is not negative semidefinite
+
+Refining starting values: 
+
+Iteration 0:   log likelihood = -402.52309  (not concave)
+Iteration 1:   log likelihood = -394.56589  (not concave)
+Iteration 2:   log likelihood =  -389.8475  (not concave)
+Iteration 3:   log likelihood = -386.51594  (not concave)
+Iteration 4:   log likelihood = -386.01298  (not concave)
+Iteration 5:   log likelihood = -385.74802  
+Iteration 6:   log likelihood = -385.31864  (not concave)
+Iteration 7:   log likelihood = -385.34512  (not concave)
+Iteration 8:   log likelihood = -386.32518  (not concave)
+Iteration 9:   log likelihood = -386.32518  (not concave)
+Iteration 10:  log likelihood = -386.31373  (not concave)
+Iteration 11:  log likelihood = -386.31584  (not concave)
+Iteration 12:  log likelihood = -386.33531  (not concave)
+Iteration 13:  log likelihood = -386.34759  (not concave)
+Iteration 14:  log likelihood = -386.36941  (not concave)
+Iteration 15:  log likelihood = -386.62413  (not concave)
+Iteration 16:  log likelihood = -387.69975  (not concave)
+Iteration 17:  log likelihood = -387.69975  (not concave)
+Iteration 18:  log likelihood = -389.30738  (not concave)
+Iteration 19:  log likelihood =  -390.0696  (not concave)
+Iteration 20:  log likelihood = -390.08569  
+
+Performing gradient-based optimization: 
+
+Iteration 0:   log likelihood = -390.08569  (not concave)
+Iteration 1:   log likelihood =  -390.0386  (not concave)
+Iteration 2:   log likelihood = -385.21926  (not concave)
+Iteration 3:   log likelihood = -385.09483  
+Iteration 4:   log likelihood = -384.04741  
+Iteration 5:   log likelihood = -382.57134  (not concave)
