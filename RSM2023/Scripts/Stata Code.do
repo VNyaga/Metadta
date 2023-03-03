@@ -3,7 +3,7 @@ cap log using "C:\DATA\WIV\Projects\GitHub\Metadta\RSM2023\Logs\stataout.txt", t
 set more off
 
 *Install the commands
-ssc install metadta
+*ssc install metadta
 ssc install midas
 ssc install metandi
 
@@ -39,20 +39,30 @@ midas tp fp fn tn, plot sroc(both) res(all) nip(1)  scheme(s1color)
 *------Table 3 (column 3)
 metandi tp fp fn tn
 *------ Figure 5 (bottom right)
-metandiplot tp fp fn tn, graphregion(color(white)) legend(ring(0) 	col(1) bplacement(6))
+metandiplot tp fp fn tn, graphregion(color(white)) legend(ring(0) col(1) bplacement(6))
 
 /*========================================================================================*/
 ***Section 5.3 
 /*========================================================================================*/
-*------Table 4 (column 2), Figure 6 (top left), 
 import delimited using "https://raw.githubusercontent.com/VNyaga/Metadta/master/RSM2023/Data/ascus.csv", delim(",")clear
+
+*------Table 4 (column 2), Figure 6 (top left) 
 metadta tp fp fn tn test, studyid(studyid) nomc ///
 	comparative sumtable(all) dp(2) nofplot
 	
-*------Figure 7 (right)	
+*------Figure 7 (left)	
 metadta tp fp fn tn test, studyid(studyid) nomc ///
 	comparative sumtable(rr) dp(2) nosroc ///
-	foptions(logscale outplot(rr) texts(2)	xlabel(0.3, 1, 2)) 	
+	foptions(logscale outplot(rr) texts(2)	xlabel(0.3, 1, 2))
+	
+*------Table 4 (column 3), Figure 6 (top right)
+encode test, gen(Test)
+replace Test = Test - 1
+midas tp fp fn tn, reg(Test) sroc(both) res(all) 
+
+*------Figure 7 (right)	
+midas tp fp fn tn, reg(Test) plot 
+	
 
 /*========================================================================================*/
 ***Section 6 
@@ -88,11 +98,14 @@ metadta tp2 fp2 fn2 tn2 tp1 fp1 fn1 tn1 test1 test2, studyid(studyid) ///
 
 *------ab-network
 import delimited using "https://raw.githubusercontent.com/VNyaga/Metadta/master/RSM2023/Data/hpvcyto-long2.csv", delim(",")clear
+//Summaries & fplot
 metadta tp fp fn tn test, studyid(studyid) progress ///
 	abnetwork cov(,identity) ref(HC2, top) sumtable(all)  ///
-	foptions(outplot(rr) texts(1.75) ///
-	xlabel(0, 0.5, 1) ///
-	lcols(age location) astext(70))
+	foptions(pointopt(msize(1.5)) outplot(rr) texts(2) ///
+	xlabel(0.9, 1, 1.8))
 
+//SROC
+metadta tp fp fn tn test, studyid(studyid) progress ///
+	abnetwork cov(,identity) ref(HC2, top) nofplot
 *------Figure 11
-graph combine fplot sroc, col(2)  xcommon graphregion(col(white))
+graph combine fplot sroc, col(2) graphregion(col(white))
