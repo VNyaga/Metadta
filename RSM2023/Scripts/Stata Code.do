@@ -3,7 +3,7 @@ cap log using "C:\DATA\WIV\Projects\GitHub\Metadta\RSM2023\Logs\stataout.txt", t
 set more off
 
 *Install the commands
-*ssc install metadta
+ssc install metadta
 ssc install midas
 ssc install metandi
 

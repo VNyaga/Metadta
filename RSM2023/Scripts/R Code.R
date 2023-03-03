@@ -12,6 +12,7 @@ fit = reitsma(telo)
 
 #Table 2, column 7
 ss = summary(fit)
+ss
 
 #Transform to 0-1 scale
 options(digits=2) #set 2 dp
@@ -42,6 +43,7 @@ fit = reitsma(dem)
 summary(fit)
 
 ss <- (summary(fit))
+ss
 
 #Table 3, column 7
 options(digits=2) #set 2 dp
@@ -63,6 +65,7 @@ legend("bottomleft", c("SROC", "conf. region"), lwd = c(2,1))
 ascus <- read.csv('https://raw.githubusercontent.com/VNyaga/Metadta/master/RSM2023/Data/ascus.csv', sep=',')
 (fit <- reitsma(ascus, formula = cbind(tsens, tfpr) ~ Test))
 ss <- (summary(fit))
+ss
 
 #Inverse function of log
 expit <- function(x){exp(x)/(1 + exp(x))}
