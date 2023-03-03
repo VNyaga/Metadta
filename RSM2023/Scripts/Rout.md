@@ -1,15 +1,4 @@
----
-title: "Comparison and validation of metadta for meta-analysis of diagnostic test accuracy studies."
-author: "Victoria N Nyaga"
-date: "2023-03-02"
-output: html_document
-editor_options: 
-  chunk_output_type: console
----
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
+# Comparison and validation of metadta for meta-analysis of diagnostic test accuracy studies.
 
 Install the package
 
