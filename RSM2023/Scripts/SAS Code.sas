@@ -1,12 +1,12 @@
 options nonumber nodate ls=90;
 
-%include "\\sciensano.be\fs\1120_Cancer_Employee\BMH\Victoria\SAS\Metadta\Scripts\Metadas_v1.3.sas";
-
+%include "\Metadta\Scripts\Metadas_v1.3.sas";
+*NOTE: Change the directory in the -option datafile- while reading in the data;
 *=====================================================================;
-*Example One;
+*Section 5.1 ;
 
 proc import out=telomerase replace
-	datafile='\\sciensano.be\fs\1120_Cancer_Employee\BMH\Victoria\SAS\Metadta\Data\telomerase.csv'
+	datafile='\Metadta\Data\telomerase.csv'
 	dbms=csv;
 	getnames = yes;
  run;
@@ -20,9 +20,9 @@ run;
 method=b, keepds=none);
 
 *=====================================================================;
-*Example Two;
+*Section 5.2;
 proc import out=dementia replace
-	datafile="\\sciensano.be\fs\1120_Cancer_Employee\BMH\Victoria\SAS\Metadta\Data\dementia.csv"
+	datafile="\Metadta\Data\dementia.csv"
 	dbms=csv;
 	getnames = yes;
  run;
@@ -36,9 +36,9 @@ run;
 method=b, keepds=none);
 
 *=====================================================================;
-*Example Three;
+*Section 5.3;
 proc import out=ascus replace
-	datafile="\\sciensano.be\fs\1120_Cancer_Employee\BMH\Victoria\SAS\Metadta\Data\ascus.csv"
+	datafile="\Metadta\Data\ascus.csv"
 	dbms=csv;
 	getnames = yes;
  run;
