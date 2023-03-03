@@ -1,4 +1,5 @@
 # Comparison and validation of metadta for meta-analysis of diagnostic test accuracy studies.
+See the [output](https://rpubs.com/VNyaga/RSM2023)
 
 Install the package
 

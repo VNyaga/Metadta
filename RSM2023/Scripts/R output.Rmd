@@ -1,9 +1,11 @@
 ---
-title: "Comparison and validation of metadta for meta-analysis of diagnostic test accuracy studies."
+title: "Comparison and validation of metadta for meta-analysis of diagnostic test
+  accuracy studies."
 author: "Victoria N Nyaga"
 date: "2023-03-02"
-output: html_document
-editor_options: 
+output:
+  html_document: default
+editor_options:
   chunk_output_type: console
 ---
 
