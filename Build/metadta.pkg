@@ -1,0 +1,29 @@
+v 1.3.0
+d
+p 'metadta': Stata module to perform fixed- and random-effects meta-analysis and meta-regression of diagnostic accuracy studies
+d
+d Routine to perform meta-analytical pooling of diagnostic accuracy data from separate studies 
+d with similar methodology and epidemiology. It implements the generalized linear model for 
+d the binomial family with a logit link, i.e logistic regression. It allows for meta-regression, 
+d and presents the results in tables, forest plot and/or SROC curve, meta-regression 
+d and repeated measures analysis. When repeated measures analysis is performed, 
+d either the proportions or the relative ratios can be tabulated and/or plotted (i.e. with 1 or 2 covariates). 
+d When there are no covariates, heterogeneity is also quantified using the 
+d I-squared measure(Zhou and Dendukuri, Statistics in Medicine, 2014).
+d KW: meta-analysis
+d KW: meta-regression
+d KW: fixed effects
+d KW: random effects
+d
+d
+d Requires: Stata version 14
+d
+d Distribution-Date: 20221111
+d
+d Author: Victoria Nyawira Nyaga, Belgian Cancer Center/Unit of Cancer Epidemiology, Brussels
+d Support: email Victoria.NyawiraNyaga@sciensano.be
+d 
+f lmetadta.mlib
+f metadta.ado	
+f metadta.sthlp
+f metadta_examples.ado

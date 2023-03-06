@@ -1,0 +1,4 @@
+OFF
+v 3
+d Victoria N Nyaga, victoria.nyawiranyaga@sciensano.be
+p 'metadta': Stata module to perform fixed- and random-effects meta-analysis and meta-regression of diagnostic accuracy studies
