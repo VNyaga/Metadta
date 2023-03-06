@@ -18,7 +18,7 @@ d
 d
 d Requires: Stata version 14
 d
-d Distribution-Date: 20221111
+d Distribution-Date: 20230306
 d
 d Author: Victoria Nyawira Nyaga, Belgian Cancer Center/Unit of Cancer Epidemiology, Brussels
 d Support: email Victoria.NyawiraNyaga@sciensano.be
@@ -27,3 +27,8 @@ f lmetadta.mlib
 f metadta.ado	
 f metadta.sthlp
 f metadta_examples.ado
+f ascus.dta
+f clinself.dta
+f network.dta
+f pairedta.dta
+f telomerase.dta
