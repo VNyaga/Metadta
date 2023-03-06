@@ -1,7 +1,12 @@
 # Metadta
 Logistic-normal and logistic regression of diagnostic accuracy studies in Stata.
 
+To install the from SSC, type
 ```
-local github "https://raw.githubusercontent.com"
-net install metadta, from(`github'/VNyaga/Metadta/tree/master/build/)
+ssc install metadta
+```
+
+To install the development version directly, type
+```
+net install metadta, from("https://raw.githubusercontent.com/VNyaga/Metadta/master/Build/")
 ```
