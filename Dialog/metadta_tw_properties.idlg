@@ -1,0 +1,108 @@
+/*metadta_tw_properties.idlg*/
+
+SCRIPT main_PREINIT
+BEGIN
+create STRING regionResults
+create STRING xaxisPropertiesResults
+create STRING xaxisTitleResults
+END
+
+SCRIPT main_POSTINIT
+BEGIN
+	program checkRegionResults
+	program checkXaxisResults
+	program xaxis_checkTitleResults
+END
+
+DIALOG main, label("Two-way properties")
+BEGIN
+	TEXT tx_title 10 10 150 ., label("Titles")
+	EDIT ed_title 10 +20 250 ., label("Titles") option(xtitles)
+	TEXT tx_axis +260 10 50 ., label("Axis")
+	SPINNER sp_axis @  +20 40 ., label(axis) min(1) max(2) default(1) 
+	BUTTON bu_title +50 @ 70 ., label("Properties") onpush(program show_title_properties)
+	BUTTON bu_xaxis 10 +30 150 ., label("X axis properties") onpush(program show_xaxis)
+	BUTTON bu_region +200 @ 150 ., label("Region properties") onpush(script show_regionOpts)
+	TEXT tx_fxsize 10 +30 100 ., label("Fxsize")
+	EDIT ed_fxsize +40 @ 100 ., option(fxsize) tooltip("Forced size of the graph")
+	
+END
+
+/*=====================================================================================*/
+SCRIPT show_xaxis
+BEGIN
+	call create CHILD metadta_gr_xaxis_without_titles AS xaxis, allowsubmit
+	call xaxis.setExitString xaxisPropertiesResults
+	call xaxis.settitle "X axis"
+	call xaxis.setExitAction "program checkXaxisResults"
+	call xaxis.setSubmitAction "program xaxisSubmit"
+END
+
+PROGRAM checkXaxisResults
+BEGIN
+	if xaxisPropertiesResults {
+		call main.bu_xaxis.formatlabel "X axis properties {0}" " *"
+	}
+	else {
+		call main.bu_xaxis.formatlabel "X axis properties {0}" "  "
+	}
+END
+
+PROGRAM xaxisSubmit
+BEGIN
+        call program checkXaxisResults
+        call Submit
+END
+
+/*=====================================================================================*/
+SCRIPT show_regionOpts
+BEGIN
+	create CHILD gr_region_options AS region, allowsubmit
+	region.setExitString regionResults
+	region.settitle "resource LBL_REGION_PROPERTIES"
+	region.setExitAction "program checkRegionResults"
+	region.setSubmitAction "program regionSubmit"
+END
+
+PROGRAM checkRegionResults
+BEGIN
+	if regionResults {
+			call main.bu_region.formatlabel "resource LBL_REGION_PROPERTIES_FMT" " *"
+	}
+	else {
+			call main.bu_region.formatlabel "resource LBL_REGION_PROPERTIES_FMT" "  "
+	}
+END
+
+PROGRAM regionSubmit
+BEGIN
+	call program checkRegionResults
+	call Submit
+END
+
+/*=====================================================================================*/
+PROGRAM show_title_properties
+BEGIN
+        call create CHILD gr_axis_title_options AS xtitle, allowsubmit
+        call xtitle.setExitString xaxisTitleResults
+        call xtitle.settitle resource GR_XAXIS_TITLE_PROPERTIES
+        call xtitle.setExitAction "program xaxis_checkTitleResults"
+        call xtitle.setSubmitAction "program xaxis_titleSubmit"
+        /*call xtitle.callthru `"titleOption.setstring "xtitle""'
+        call xtitle.callthru `"scaleOption.setstring "xscale""'*/
+END
+PROGRAM xaxis_checkTitleResults
+BEGIN
+        if xaxisTitleResults.iseq("") {
+                call main.bu_title.formatlabel "resource LBL_PROPERTIES_FMT" "  "
+        }
+        else {
+                call main.bu_title.formatlabel "resource LBL_PROPERTIES_FMT" " *"
+        }
+END
+PROGRAM xaxis_titleSubmit
+BEGIN
+        call program xaxis_checkTitleResults
+        call Submit
+END
+

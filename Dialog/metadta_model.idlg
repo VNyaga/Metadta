@@ -1,0 +1,160 @@
+DIALOG model, title(" Metadta 1.0 - Meta-analysis and -regression of diagnostic studies") tabtitle("Model")
+BEGIN
+	GROUPBOX gb_model      10    10    450    100,          ///
+        label("Effects type")
+	RADIO rd_me 20 +20 . ., first option(RE) label("Mixed") ///
+		  onclickon(script model_me_on) onclickoff(script model_me_off)
+	TEXT tx_covtype @ +30 120 .,  label("Covariance structure")
+	COMBOBOX cb_covtype @ +20 120 ., dropdownlist contents(covtype_list) option(cov) default(unstructured)
+	RADIO rd_fe 250 30 50 ., last option(FE) label("Fixed") ///
+	onclickon(script model_me_off) onclickoff(script model_me_on)
+	
+	TEXT tx_dep 10 +100 200 ., label("Dependent variables: tp tn fp fn")
+	VARLIST vl_dep @ +20 120 ., error("Specify dependent variables")
+	
+	TEXT tx_sid 250 130 150 ., label("Study identifying variable")
+	VARNAME vn_sid @ +20 120 ., error("Specify study identifier")	option(sid)
+	
+	CHECKBOX ck_mreg        10    +60    450    150,    ///
+        groupbox  default(0)                            ///
+        label("Meta-regression")            			///
+        onclickon(script model_mreg_on)                  ///
+        onclickoff(script model_mreg_off)
+	
+	TEXT tx_indep 20 +20 180 ., label("Independent variables")
+	VARLIST vl_indep @ +20 120 ., error("Specify independent variables")	
+
+	TEXT tx_reflevels 250 230 120 ., label("Covariate(s) base levels")
+	EDIT ed_reflevels @ +20 120 ., option(reflevels)
+	
+	TEXT tx_cveffect 20 +40 120 .,  label("Covariate effect")
+	COMBOBOX cb_cveffect @ +20 120 ., dropdownlist contents(cveffect_list) option(cveffect) default(sesp)
+END
+
+LIST cveffect_list
+BEGIN
+	sesp
+	se
+	sp		
+END	
+	
+LIST covtype_list
+BEGIN
+	unstructured
+	independent
+	identity
+	exchangeable		
+END	
+
+SCRIPT model_me_off
+BEGIN
+	model.tx_covtype.disable
+	model.cb_covtype.disable
+	
+	max.gb_xtme_re.disable
+	max.ed_xtme_tol.disable
+	max.tx_xtme_tol.disable
+	max.sp_xtme_ittr.disable
+	max.tx_xtme_ittr.disable
+	max.gb_xtme_matlog.disable
+	max.rb_xtme_sqrt.disable
+	max.rb_xtme_matlog.disable
+	
+	integration.rd_nip.disable
+	integration.ed_nip.disable
+	integration.rd_lap.disable
+	rpt.ck_boot.disable
+	rpt.ed_seed.disable
+	rpt.tx_seed.disable
+	rpt.ed_breps.disable
+	rpt.tx_breps.disable
+	rpt.rd_bc.disable
+	rpt.rd_pci.disable
+	program check_sroc_ck_nosroc
+	program check_forest_ck_noforest
+END
+
+SCRIPT model_me_on
+BEGIN
+	model.tx_covtype.enable
+	model.cb_covtype.enable
+	max.gb_xtme_re.enable
+	max.ed_xtme_tol.enable
+	max.tx_xtme_tol.enable
+	max.sp_xtme_ittr.enable
+	max.tx_xtme_ittr.enable
+	max.gb_xtme_matlog.enable
+	max.rb_xtme_sqrt.enable
+	max.rb_xtme_matlog.enable
+	integration.rd_nip.enable
+	integration.ed_nip.enable
+	integration.rd_lap.enable
+	rpt.ck_boot.enable
+	program check_sroc_ck_nosroc
+	program check_forest_ck_noforest
+END
+
+PROGRAM check_sroc_ck_nosroc
+BEGIN
+	if !sroc.ck_nosroc & model.rd_fe {
+		call sroc.bu_hairoptions.enable
+		call sroc.ck_noellipse.disable
+		call sroc.ck_noprediction.disable
+		call sroc.bu_curveoptions.disable
+		call sroc.bu_ellioptions.disable
+		call sroc.bu_predoptions.disable
+	}
+	if !sroc.ck_nosroc & model.rd_me {
+		call sroc.bu_hairoptions.disable
+		call sroc.ck_noellipse.enable
+		call sroc.ck_noprediction.enable
+		call sroc.bu_curveoptions.enable
+		call sroc.bu_ellioptions.enable
+		call sroc.bu_predoptions.enable
+		
+	}
+END
+
+PROGRAM check_forest_ck_noforest
+BEGIN
+	if !forest.ck_noforest & model.rd_me {
+		call forest.bu_isq.enable
+	}
+	if !forest.ck_noforest & model.rd_fe {
+		call forest.bu_isq.disable	
+	}
+END
+
+SCRIPT model_mreg_off
+BEGIN
+	model.tx_indep.disable
+	model.vl_indep.disable
+	model.tx_reflevels.disable
+	model.ed_reflevels.disable
+	model.tx_cveffect.disable
+	model.cb_cveffect.disable
+	rpt.ck_nonull.disable
+	rpt.ck_norr.disable
+	sroc.ed_colorvector.disable
+	sroc.tx_colorvector.disable	
+	rpt.ck_nonull.disable
+	rpt.ck_norr.disable
+	forest.bu_isq.enable
+END
+
+SCRIPT model_mreg_on
+BEGIN
+	model.tx_indep.enable
+	model.vl_indep.enable
+	model.tx_reflevels.enable
+	model.ed_reflevels.enable
+	model.tx_cveffect.enable
+	model.cb_cveffect.enable
+	rpt.ck_nonull.enable
+	rpt.ck_norr.enable
+	sroc.ed_colorvector.enable
+	sroc.tx_colorvector.enable
+	rpt.ck_nonull.enable
+	rpt.ck_norr.enable
+	forest.bu_isq.disable
+END

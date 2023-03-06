@@ -1,0 +1,10 @@
+
+DIALOG integration, tabtitle("Integration")
+BEGIN
+	RADIO rd_nip 10 10 350 ., label("Number of integration points for adaptive Gaussian quadrature") first
+	EDIT ed_nip 15 +20 120 ., label("Number of integration points for adaptive Gaussian quadrature") ///
+		 default(7) option(intpoints)
+	RADIO rd_lap 10 +30 250 ., label("Use Laplacian approximation") last ///
+		  onclickon(integration.ed_nip.disable) onclickoff(integration.ed_nip.enable) ///
+		  option(laplace)
+END

@@ -1,0 +1,32 @@
+VERSION 14
+
+INCLUDE _std_small
+DEFINE _dlght  130
+DEFINE _dlgwd  400
+INCLUDE header
+
+RESET res1
+
+INCLUDE metadta_tw_properties
+
+PROGRAM tw_output
+BEGIN
+	if regionResults | xaxisPropertiesResults {
+		put " statstwoptions(" regionResults xaxisPropertiesResults  ")"
+	}
+	if main.ed_title {
+		put	" statsxtitles(" main.ed_title  ")"
+	}
+	if main.sp_axis {
+		put	" statsaxis("	main.sp_axis  ")"
+	}
+	if xaxisTitleResults {
+		put	" statsxtitleopts"	xaxisTitleResults  " "
+	}
+	optionarg main.ed_fxsize
+END
+
+PROGRAM command
+BEGIN
+	put " " /program tw_output
+END

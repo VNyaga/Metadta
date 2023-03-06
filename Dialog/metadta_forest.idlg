@@ -1,0 +1,792 @@
+SCRIPT forest_PREINIT
+BEGIN
+    create STRING forest_regionResults 
+    create STRING forest_titlesResults
+	create STRING selcoltwoptionsResults
+	create STRING splcoltwoptionsResults
+	create STRING colsoptionsResults
+	create STRING sidoptionsResults
+	create STRING sidtwoptionsResults
+	create STRING fpointoptionsResults
+	create STRING fcioptionsResults
+	create STRING fplotoptionsResults
+	create STRING statsoptionsResults
+	create STRING diamoptionsResults
+	create STRING olineoptionsResults
+	create STRING glineoptionsResults
+	create STRING isqoptionsResults
+	create STRING statstwoptionsResults
+	
+END
+
+SCRIPT forest_POSTINIT
+BEGIN
+	program forest_checkRegionResults
+	program forest_checkTitlesResults
+	program checkSelcoltwoptionsResults
+	program checkSplcoltwoptionsResults
+	program checkColsoptionsResults
+	program checkSidoptionsResults
+	program checkSidtwoptionsResults
+	program checkFpointoptionsResults
+	program checkFcioptionsResults
+	program checkFplotoptionsResults
+	program checkStatsoptionsResults
+	program checkDiamoptionsResults
+	program checkOlineoptionsResults
+	program checkGlineoptionsResults
+	program checkIsqoptionsResults
+	program checkStatstwoptionsResults
+END
+		
+DIALOG forest, tabtitle("Forest")
+BEGIN
+	CHECKBOX ck_noforest 10 10 . ., label("Suppress the forest-plot")    ///
+			 option(noforest) onclickon(script forest_noforest_on)  ///
+			 onclickoff(script forest_noforest_off)
+	CHECKBOX ck_oline @ +20 . ., ///
+			 option(nooline)   ///
+			 label("Suppress the overall line") ///
+			 onclickon(script noolineon) onclickoff(script noolineoff)
+	CHECKBOX ck_group @ +20 . ., ///
+			 option(nogroup)   ///
+			 label("Suppress the group estimates") ///
+			 onclickon(script nogroupon) onclickoff(script nogroupoff)
+	CHECKBOX ck_overall @ +20 . ., ///
+			 option(nooverall)   ///
+			 label("Suppress the overall estimates")
+	CHECKBOX ck_stats @ +20 . ., ///
+			 option(nostats)   ///
+			 label("Suppress the estimates") ///
+			 onclickon(script nostatson) onclickoff(script nostatsoff)
+	CHECKBOX ck_summonly 250  10 . ., ///
+			 option(summaryonly)   ///
+			 label("Show summary only") ///
+			 onclickon(script summaryonlyon) onclickoff(script summaryonlyoff)
+	TEXT tx_citype 250  +20   220 ., label("Method for study-specific CI")
+	COMBOBOX cb_citype @ +20 120 ., dropdownlist contents(citype_list) option(cltype) default(cp)
+	TEXT tx_se 10 110 180 ., label("Variables left of sensitivity plot")
+	VARLIST vl_se @ +20 120 ., option(selcols)
+	BUTTON bu_selcoltw +120 @ 70 ., label("Properties") onpush(script show_selcoltwoptions) 
+	
+	TEXT tx_sp 250 110 180 ., label("Variables left of specificity plot")
+	VARLIST vl_sp @ +20 120 ., option(splcols)
+	BUTTON bu_spcoltw +120 @ 70 ., label("Properties") onpush(script show_splcoltwoptions)
+	
+	BUTTON bu_colsoptions 10 +30 300 ., label("Label properties for columns left of sensitivity/specificity") ///
+		   onpush(script show_colsoptions)
+	BUTTON bu_points +340 @ 140 ., label("Point properties") onpush(script show_fpointoptions)
+	
+	BUTTON bu_sid 10 +30 120 ., label("SID label properties") onpush(script show_sidoptions)
+	BUTTON bu_sidtw +150 @ 120 ., label("SID overall properties") onpush(script show_sidtwoptions)	
+	BUTTON bu_stats +190 @ 140 ., label("Stats labels properties") onpush(script show_statsoptions)
+
+	BUTTON bu_ci 10 +30 120 ., label("CI lines properties") onpush(script show_fcioptions)
+	BUTTON bu_fplot +150 @ 150 ., label("Overall forest plot properties") onpush(script show_fplotoptions)
+	BUTTON bu_statstw +190 @ 140 ., label("Stats Overall properties") onpush(script show_statstwoptions)
+	
+	
+	BUTTON bu_diam 10 +30  120 ., label("Diamond properties") onpush(script show_diamoptions)
+	BUTTON bu_oline +150 @150 ., label("Overall line properties") onpush(script show_olineoptions)
+	BUTTON bu_gline +190 @ 140 ., label("Group line properties") onpush(script show_glineoptions)
+	
+
+	CHECKBOX ck_hgrid 10 +30 150 ., label("Horizontal grids") option(hgrid)
+	EDIT ed_diamsize +150 @ 30 ., label("Diamond height") default(1) option(diamsize)
+	TEXT tx_diamsize +30 @ 150 ., label("Diamond relative height") 
+	BUTTON bu_isq +160 @ 140 ., label("Hetero stat properties") onpush(script show_isqoptions)
+	
+	
+	GROUPBOX gb_soptions  10    +30    470    240,          ///
+        label("Overall plot properties")
+
+	BUTTON bu_titles 20 +20 100 ., label("Titles") onpush(script forest_show_titles)
+	
+	TEXT tx_scheme 280 320 100 ., label("Scheme")
+	COMBOBOX cb_scheme 280 +20 100 ., ///
+	option(scheme) dropdownlist contents(schemes) 
+	CHECKBOX ck_scheme 280 +30 200 ., label("Use common scheme for all graphs") option(commonscheme)
+
+	BUTTON bu_region 20 @ 100 ., label("Region properties") onpush(script forest_show_regionOpts)
+	
+	GROUPBOX gb_gsize  20    +30    430    50,          ///
+        label("Graph size")
+	EDIT ed_width  +20 +20 50 ., label("Width") option(xsize)
+	TEXT tx_width  +60 @ 100 ., label("Width(inches)")
+	
+	EDIT ed_height  +100 @ 50 ., label("Height") option(ysize)
+	TEXT tx_height  +60 @ 100 ., label("Height(inches)")
+	
+	TEXT tx_scale  20 +30 100 ., label("Scale text")
+	EDIT ed_scale  @ +20 70 ., label("Scale text") default(1.0) option(iscale)
+	
+	CHECKBOX ck_allscale  200    460  250   50,           ///
+        groupbox                                                ///
+        label("Scale all text, markers and lines")            ///
+        onclickon(script forest_allscale_on)                         ///
+        onclickoff(script forest_allscale_off)
+		
+	EDIT ed_allscale  +20 +20 30 ., label("Scale all") default(1) option(scale)
+	TEXT tx_allscale  +30 @ 100 ., label("Scale multiplier") 
+	
+	TEXT tx_margins  20 +20 100 ., label("Margins") 
+	COMBOBOX cb_margins @ +20 100 ., contents(margin) dropdownlist	 option(imargin)
+	CHECKBOX ck_commonyscale 200 520 200 ., label("Use common scale for y axes") option(ycommon)
+		
+END
+
+LIST citype_list
+BEGIN
+	cp
+	w
+	ac
+END	
+	
+PROGRAM forest_noforest_off
+BEGIN
+	forest.ck_oline.enable
+	forest.ck_group.enable
+	forest.ck_overall.enable
+	forest.ck_stats.enable
+	forest.ck_summonly.enable
+	forest.tx_citype.enable 
+	forest.cb_citype.enable
+	forest.tx_se.enable
+	forest.vl_se.enable
+	forest.bu_selcoltw.enable
+	forest.tx_sp.enable
+	forest.bu_spcoltw.enable
+	forest.bu_colsoptions.enable
+	forest.bu_sid.enable
+	forest.bu_sidtw.enable
+	forest.bu_points.enable
+	forest.bu_ci.enable
+	forest.bu_fplot.enable
+	forest.bu_diam.enable
+	forest.bu_oline.enable
+	forest.bu_gline.enable
+	forest.ck_hgrid.enable
+	forest.ed_diamsize.enable
+	forest.tx_diamsize.enable
+	forest.gb_soptions.enable
+	forest.bu_titles.enable
+	forest.tx_scheme.enable
+	forest.cb_scheme.enable
+	forest.ck_scheme.enable
+	forest.bu_region.enable
+	forest.gb_gsize.enable
+	forest.ed_width.enable
+	forest.tx_width.enable
+	forest.ed_height.enable
+	forest.tx_height.enable
+	forest.tx_scale.enable
+	forest.ed_scale.enable
+	forest.ck_allscale.enable
+	forest.ed_allscale.enable
+	forest.tx_allscale.enable
+	forest.tx_margins.enable
+	forest.cb_margins.enable
+	forest.ck_commonyscale.enable
+	forest.bu_stats.enable
+	forest.bu_statstw.enable
+	program check_forest_ck_noforest
+	program check_model_ck_mreg
+	
+END
+
+
+PROGRAM forest_noforest_on
+BEGIN
+	forest.ck_oline.disable
+	forest.ck_group.disable
+	forest.ck_overall.disable
+	forest.ck_stats.disable
+	forest.ck_summonly.disable
+	forest.tx_citype.disable
+	forest.cb_citype.disable
+	forest.tx_se.disable
+	forest.vl_se.disable
+	forest.bu_selcoltw.disable
+	forest.tx_sp.disable
+	forest.bu_spcoltw.disable
+	forest.bu_colsoptions.disable
+	forest.bu_sid.disable
+	forest.bu_sidtw.disable
+	forest.bu_points.disable 
+	forest.bu_ci.disable
+	forest.bu_fplot.disable
+	forest.bu_diam.disable
+	forest.bu_oline.disable
+	forest.bu_gline.disable
+	forest.bu_isq.disable
+	forest.ck_hgrid.disable
+	forest.ed_diamsize.disable
+	forest.tx_diamsize.disable
+	forest.gb_soptions.disable
+	forest.bu_titles.disable
+	forest.tx_scheme.disable
+	forest.cb_scheme.disable
+	forest.ck_scheme.disable
+	forest.bu_region.disable
+	forest.gb_gsize.disable
+	forest.ed_width.disable
+	forest.tx_width.disable 
+	forest.ed_height.disable
+	forest.tx_height.disable
+	forest.tx_scale.disable
+	forest.ed_scale.disable
+	forest.ck_allscale.disable
+	forest.ed_allscale.disable
+	forest.tx_allscale.disable
+	forest.tx_margins.disable
+	forest.cb_margins.disable
+	forest.ck_commonyscale.disable
+	forest.bu_stats.disable
+	forest.bu_statstw.disable
+	
+END
+
+SCRIPT nostatsoff
+BEGIN
+	forest.bu_isq.enable
+	forest.bu_stats.enable
+	forest.bu_statstw.enable
+END
+
+SCRIPT nostatson
+BEGIN
+	forest.bu_isq.disable
+	forest.bu_stats.disable
+	forest.bu_statstw.disable
+END
+
+
+SCRIPT nogroupoff
+BEGIN
+	forest.bu_gline.enable
+END
+
+SCRIPT nogroupon
+BEGIN
+	forest.bu_gline.disable
+END
+
+SCRIPT noolineoff
+BEGIN
+	forest.bu_oline.enable
+END
+
+SCRIPT noolineon
+BEGIN
+	forest.bu_oline.disable
+END
+
+SCRIPT summaryonlyoff
+BEGIN
+	forest.tx_citype.enable
+	forest.cb_citype.enable
+	forest.bu_ci.enable
+END
+
+SCRIPT summaryonlyon
+BEGIN
+	forest.tx_citype.disable
+	forest.cb_citype.disable
+	forest.bu_ci.disable
+END
+
+SCRIPT forest_allscale_on
+BEGIN
+	forest.ed_allscale.enable
+	forest.tx_allscale.enable
+END
+
+SCRIPT forest_allscale_off
+BEGIN
+	forest.ed_allscale.disable
+	forest.tx_allscale.disable
+END
+/*=====================================================================================*/
+SCRIPT show_isqoptions
+BEGIN
+        create CHILD metadta_marker_label_properties AS isqoptions, allowsubmit
+        isqoptions.setExitString isqoptionsResults
+        isqoptions.settitle "Label Properties"
+        isqoptions.setExitAction "program checkIsqoptionsResults"
+        isqoptions.setSubmitAction "program isqoptionsSubmit"
+END
+
+PROGRAM checkIsqoptionsResults
+BEGIN
+        if isqoptionsResults {
+			call forest.bu_isq.formatlabel "Hetero stat properties {0}" " *"
+        }
+        else {
+			call forest.bu_isq.formatlabel "Hetero stat properties {0}" "  "
+        }
+END
+
+PROGRAM isqoptionsSubmit
+BEGIN
+        call program checkIsqoptionsResults
+        call Submit
+END
+/*=====================================================================================*/
+SCRIPT show_glineoptions
+BEGIN
+        create CHILD gr_line_options AS glineoptions, allowsubmit
+        glineoptions.setExitString glineoptionsResults
+        glineoptions.settitle "Line Properties"
+        glineoptions.setExitAction "program checkGlineoptionsResults"
+        glineoptions.setSubmitAction "program glineoptionsSubmit"
+END
+
+PROGRAM checkGlineoptionsResults
+BEGIN
+        if glineoptionsResults {
+			call forest.bu_gline.formatlabel "Group line properties {0}" " *"
+        }
+        else {
+			call forest.bu_gline.formatlabel "Group line properties {0}" "  "
+        }
+END
+
+PROGRAM glineoptionsSubmit
+BEGIN
+        call program checkGlineoptionsResults
+        call Submit
+END
+/*=====================================================================================*/
+SCRIPT show_olineoptions
+BEGIN
+        create CHILD gr_line_options AS olineoptions, allowsubmit
+        olineoptions.setExitString olineoptionsResults
+        olineoptions.settitle "Line Properties"
+        olineoptions.setExitAction "program checkOlineoptionsResults"
+        olineoptions.setSubmitAction "program olineoptionsSubmit"
+END
+
+PROGRAM checkOlineoptionsResults
+BEGIN
+        if olineoptionsResults {
+			call forest.bu_oline.formatlabel "Overall line properties {0}" " *"
+        }
+        else {
+			call forest.bu_oline.formatlabel "Overall line properties {0}" "  "
+        }
+END
+
+PROGRAM olineoptionsSubmit
+BEGIN
+        call program checkOlineoptionsResults
+        call Submit
+END
+/*=====================================================================================*/
+SCRIPT show_diamoptions
+BEGIN
+        create CHILD gr_line_options AS diamoptions, allowsubmit
+        diamoptions.setExitString diamoptionsResults
+        diamoptions.settitle "Line Properties"
+        diamoptions.setExitAction "program checkDiamoptionsResults"
+        diamoptions.setSubmitAction "program diamoptionsSubmit"
+END
+
+PROGRAM checkDiamoptionsResults
+BEGIN
+        if diamoptionsResults {
+			call forest.bu_diam.formatlabel "Diamond properties {0}" " *"
+        }
+        else {
+			call forest.bu_diam.formatlabel "Diamond properties {0}" "  "
+        }
+END
+
+PROGRAM diamoptionsSubmit
+BEGIN
+        call program checkDiamoptionsResults
+        call Submit
+END
+/*=====================================================================================*/
+SCRIPT show_statsoptions
+BEGIN
+        create CHILD metadta_marker_label_properties AS statsoptions, allowsubmit
+        statsoptions.setExitString statsoptionsResults
+        statsoptions.settitle "Label Properties"
+        statsoptions.setExitAction "program checkStatsoptionsResults"
+        statsoptions.setSubmitAction "program statsoptionsSubmit"
+END
+
+PROGRAM checkStatsoptionsResults
+BEGIN
+        if statsoptionsResults {
+			call forest.bu_stats.formatlabel "Stats labels properties {0}" " *"
+        }
+        else {
+			call forest.bu_stats.formatlabel "Stats labels properties {0}" "  "
+        }
+END
+
+PROGRAM statsoptionsSubmit
+BEGIN
+        call program checkStatsoptionsResults
+        call Submit
+END
+/*=====================================================================================*/
+SCRIPT show_statstwoptions
+BEGIN
+        create CHILD metadta_forest_statstwoptions AS statstwoptions, allowsubmit
+        statstwoptions.setExitString statstwoptionsResults
+        statstwoptions.settitle "Two-way Properties"
+        statstwoptions.setExitAction "program checkStatstwoptionsResults"
+        statstwoptions.setSubmitAction "program statstwoptionsSubmit"
+END
+
+PROGRAM checkStatstwoptionsResults
+BEGIN
+        if statstwoptionsResults {
+			call forest.bu_statstw.formatlabel "Stats overall properties {0}" " *"
+        }
+        else {
+			call forest.bu_statstw.formatlabel "Stats overall properties {0}" "  "
+        }
+END
+
+PROGRAM statstwoptionsSubmit
+BEGIN
+        call program checkStatstwoptionsResults
+        call Submit
+END
+/*=====================================================================================*/
+SCRIPT show_fplotoptions
+BEGIN
+        create CHILD metadta_forest_fplotoptions AS fplotoptions, allowsubmit
+        fplotoptions.setExitString fplotoptionsResults
+        fplotoptions.settitle "Two-way Properties"
+        fplotoptions.setExitAction "program checkFplotoptionsResults"
+        fplotoptions.setSubmitAction "program fplotoptionsSubmit"
+END
+
+PROGRAM checkFplotoptionsResults
+BEGIN
+        if fplotoptionsResults {
+			call forest.bu_fplot.formatlabel "Overall forest plot properties {0}" " *"
+        }
+        else {
+			call forest.bu_fplot.formatlabel "Overall forest plot properties {0}" "  "
+        }
+END
+
+PROGRAM fplotoptionsSubmit
+BEGIN
+        call program checkFplotoptionsResults
+        call Submit
+END
+/*=====================================================================================*/
+SCRIPT show_fcioptions
+BEGIN
+        create CHILD gr_line_options AS fcioptions, allowsubmit
+        fcioptions.setExitString fcioptionsResults
+        fcioptions.settitle "Label Properties"
+        fcioptions.setExitAction "program checkFcioptionsResults"
+        fcioptions.setSubmitAction "program fcioptionsSubmit"
+END
+
+PROGRAM checkFcioptionsResults
+BEGIN
+        if fpointoptionsResults {
+			call forest.bu_ci.formatlabel "CI lines properties {0}" " *"
+        }
+        else {
+			call forest.bu_ci.formatlabel "CI lines properties {0}" "  "
+        }
+END
+
+PROGRAM fcioptionsSubmit
+BEGIN
+        call program checkFcioptionsResults
+        call Submit
+END
+/*=====================================================================================*/
+SCRIPT show_fpointoptions
+BEGIN
+        create CHILD metadta_marker_properties AS fpointoptions, allowsubmit
+        fpointoptions.setExitString fpointoptionsResults
+        fpointoptions.settitle "Label Properties"
+        fpointoptions.setExitAction "program checkFpointoptionsResults"
+        fpointoptions.setSubmitAction "program fpointoptionsSubmit"
+END
+
+PROGRAM checkFpointoptionsResults
+BEGIN
+        if fpointoptionsResults {
+			call forest.bu_points.formatlabel "Point properties {0}" " *"
+        }
+        else {
+			call forest.bu_points.formatlabel "Point properties {0}" "  "
+        }
+END
+
+PROGRAM fpointoptionsSubmit
+BEGIN
+        call program checkFpointoptionsResults
+        call Submit
+END
+/*=====================================================================================*/
+SCRIPT show_sidtwoptions
+BEGIN
+        create CHILD metadta_forest_sidtwoptions AS sidtwoptions, allowsubmit
+        sidtwoptions.setExitString sidtwoptionsResults
+        sidtwoptions.settitle "Label Properties"
+        sidtwoptions.setExitAction "program checkSidtwoptionsResults"
+        sidtwoptions.setSubmitAction "program sidtwoptionsSubmit"
+END
+
+PROGRAM checkSidtwoptionsResults
+BEGIN
+        if sidtwoptionsResults {
+			call forest.bu_sidtw.formatlabel "SID overall properties {0}" " *"
+        }
+        else {
+			call forest.bu_sidtw.formatlabel "SID overall properties {0}" "  "
+        }
+END
+
+PROGRAM sidtwoptionsSubmit
+BEGIN
+        call program checkSidtwoptionsResults
+        call Submit
+END
+/*=====================================================================================*/
+SCRIPT show_sidoptions
+BEGIN
+        create CHILD metadta_marker_label_properties AS sidoptions, allowsubmit
+        sidoptions.setExitString sidoptionsResults
+        sidoptions.settitle "Label Properties"
+        sidoptions.setExitAction "program checkSidoptionsResults"
+        sidoptions.setSubmitAction "program sidoptionsSubmit"
+END
+
+PROGRAM checkSidoptionsResults
+BEGIN
+        if sidoptionsResults {
+			call forest.bu_sid.formatlabel "SID label properties {0}" " *"
+        }
+        else {
+			call forest.bu_sid.formatlabel "SID label properties {0}" "  "
+        }
+END
+
+PROGRAM sidoptionsSubmit
+BEGIN
+        call program checkSidoptionsResults
+        call Submit
+END
+/*=====================================================================================*/
+SCRIPT show_colsoptions
+BEGIN
+        create CHILD metadta_marker_label_properties AS colsoptions, allowsubmit
+        colsoptions.setExitString colsoptionsResults
+        colsoptions.settitle "Label Properties"
+        colsoptions.setExitAction "program checkColsoptionsResults"
+        colsoptions.setSubmitAction "program colsoptionsSubmit"
+END
+
+PROGRAM checkColsoptionsResults
+BEGIN
+        if colsoptionsResults {
+			call forest.bu_colsoptions.formatlabel "Label properties for columns left of sensitivity/specificity {0}" " *"
+        }
+        else {
+			call forest.bu_colsoptions.formatlabel "Label properties for columns left of sensitivity/specificity {0}" "  "
+        }
+END
+
+PROGRAM colsoptionsSubmit
+BEGIN
+        call program checkColsoptionsResults
+        call Submit
+END
+/*=====================================================================================*/
+SCRIPT show_splcoltwoptions
+BEGIN
+        create CHILD metadta_forest_splcolstwoptions AS splcoltwoptions, allowsubmit
+        splcoltwoptions.setExitString splcoltwoptionsResults
+        splcoltwoptions.settitle "Properties"
+        splcoltwoptions.setExitAction "program checkSplcoltwoptionsResults"
+        splcoltwoptions.setSubmitAction "program splcoltwoptionsSubmit"
+END
+
+PROGRAM checkSplcoltwoptionsResults
+BEGIN
+        if splcoltwoptionsResults {
+			call forest.bu_spcoltw.formatlabel "Properties {0}" " *"
+        }
+        else {
+			call forest.bu_spcoltw.formatlabel "Properties {0}" "  "
+        }
+END
+
+PROGRAM splcoltwoptionsSubmit
+BEGIN
+        call program checkSplcoltwoptionsResults
+        call Submit
+END
+/*=====================================================================================*/
+SCRIPT show_selcoltwoptions
+BEGIN
+        create CHILD metadta_forest_selcolstwoptions AS selcoltwoptions, allowsubmit
+        selcoltwoptions.setExitString selcoltwoptionsResults
+        selcoltwoptions.settitle "Properties"
+        selcoltwoptions.setExitAction "program checkSelcoltwoptionsResults"
+        selcoltwoptions.setSubmitAction "program selcoltwoptionsSubmit"
+END
+
+PROGRAM checkSelcoltwoptionsResults
+BEGIN
+        if selcoltwoptionsResults {
+			call forest.bu_selcoltw.formatlabel "Properties {0}" " *"
+        }
+        else {
+			call forest.bu_selcoltw.formatlabel "Properties {0}" "  "
+        }
+END
+
+PROGRAM selcoltwoptionsSubmit
+BEGIN
+        call program checkSelcoltwoptionsResults
+        call Submit
+END
+
+/*=====================================================================================*/
+SCRIPT forest_show_regionOpts
+BEGIN
+        create CHILD gr_region_options AS forest_region, allowsubmit
+        forest_region.setExitString forest_regionResults
+        forest_region.settitle "resource LBL_REGION_PROPERTIES"
+        forest_region.setExitAction "program forest_checkRegionResults"
+        forest_region.setSubmitAction "program forest_regionSubmit"
+END
+
+PROGRAM forest_checkRegionResults
+BEGIN
+        if forest_regionResults {
+			call forest.bu_region.formatlabel "resource LBL_REGION_PROPERTIES_FMT" " *"
+        }
+        else {
+			call forest.bu_region.formatlabel "resource LBL_REGION_PROPERTIES_FMT" "  "
+        }
+END
+
+PROGRAM forest_regionSubmit
+BEGIN
+        call program forest_checkRegionResults
+        call Submit
+END
+/*=====================================================================================*/
+SCRIPT forest_show_titles
+BEGIN
+        create CHILD metadta_titles AS forest_titles, allowsubmit
+        forest_titles.setExitString forest_titlesResults
+        forest_titles.settitle "Titles"
+        forest_titles.setExitAction "program forest_checkTitlesResults"
+        forest_titles.setSubmitAction "program forest_titlessSubmit"
+END
+
+PROGRAM forest_checkTitlesResults
+BEGIN
+        if forest_titlesResults {
+			call forest.bu_titles.formatlabel "Titles {0}" " *"
+        }
+        else {
+			call forest.bu_titles.formatlabel "Titles {0}" "  "
+        }
+END
+
+PROGRAM forest_titlesSubmit
+BEGIN
+        call program forest_checkTitlesResults
+        call Submit
+END
+/*=====================================================================================*/
+
+PROGRAM forest_output
+BEGIN
+	option forest.ck_noforest
+	if !forest.ck_noforest {
+		option forest.ck_oline
+		option forest.ck_group
+		option forest.ck_overall
+		option forest.ck_stats
+		option forest.ck_summonly
+		option forest.ck_hgrid
+		if !default(forest.ed_diamsize){
+			optionarg forest.ed_diamsize
+		}
+		if !forest.ck_summonly {
+			optionarg /hidedefault forest.cb_citype
+		}
+		optionarg forest.vl_se
+		put " " selcoltwoptionsResults " "
+		optionarg forest.vl_sp
+		put " " splcoltwoptionsResults " "
+		
+		if sidoptionsResults {
+			put " sidoptions(" sidoptionsResults ")"
+		}
+		if sidtwoptionsResults {
+			put " sidtwoptions(" sidtwoptionsResults ")"
+		}
+		if colsoptionsResults {
+			put " colsoptions(" colsoptionsResults ")"
+		}
+		if statsoptionsResults {
+			put " statsoptions(" statsoptionsResults ")"
+		}
+		if fplotoptionsResults {
+			put " fplotoptions(" fplotoptionsResults ")"
+		}
+		if fpointoptionsResults {
+			put " fpointoptions(" fpointoptionsResults ")"
+		}
+		if fcioptionsResults {
+			put " fcioptions(" fcioptionsResults ")"
+		}
+		if diamoptionsResults {
+			put " diamoptions(" diamoptionsResults ")"
+		}
+		if olineoptionsResults {
+			put " olineoptions(" olineoptionsResults ")"
+		}
+		if glineoptionsResults {
+			put " glineoptions(" glineoptionsResults ")"
+		}
+		if isqoptionsResults {
+			put " isqoptions(" isqoptionsResults ")"
+		}
+		
+		put " " statstwoptionsResults " "
+		
+		*if forest_regionResults | forest_titlesResults | forest.ck_scheme | !default(forest.cb_scheme) |!default(forest.ed_scale) | !H(forest.ck_commonyscale) | !defautlt(forest.cb_margins) | forest.ed_height | forest.ed_width {
+			put " gcombioptions(" 
+				put " " forest_regionResults " "
+				put  " " forest_titlesResults " "
+				option forest.ck_scheme
+				if !default(forest.cb_scheme) {
+					put " scheme(" forest.cb_scheme ")"
+				}
+				if !default(forest.ed_scale) {
+					if (forest.ed_scale) {
+						put " iscale(*" forest.ed_scale ")"
+					}
+				}
+				if forest.ck_allscale {
+					optionarg forest.ed_allscale
+				}
+				optionarg forest.ed_height
+				optionarg forest.ed_width
+				optionarg /hidedefault forest.cb_margins
+				option forest.ck_commonyscale
+			put ")"
+		*}
+	}
+END

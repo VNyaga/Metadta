@@ -1,0 +1,146 @@
+DIALOG rpt, tabtitle("Reporting")
+BEGIN		 
+	EDIT ed_dp 10 10 30 ., label("Decimal points to display") default(3) option(dp)	
+	TEXT tx_dp +30 @ 120 ., label("Decimal points to display") 
+	COMBOBOX cb_cilevel 180 @ 40 ., label("Confidence level") contents(cilevel_list)  ///
+			 dropdown default(95)	option(level)
+	TEXT tx_cilevel +40 @ 120 ., label("Confidence level")
+	EDIT ed_pow 340 @ 30 ., label("Exponentiation power") default(0) option(power)	
+	TEXT tx_pow +30 @ 120 ., label("Exponentiation power")
+	
+	CHECKBOX ck_notable 10 +30 . ., label("Suppress all tables")    ///
+			 option(notable) onclickon(script notable_on) onclickoff(script notable_off)
+	
+	CHECKBOX ck_nonull 10 +30 . ., label("Suppress estimates from the null model")    ///
+			 option(nonull) 
+	CHECKBOX ck_nosesp 10 +30 . ., label("Suppress absolute accuracy estimates")    ///
+			 option(nosesp) 
+	CHECKBOX ck_norr 10 +30 . ., label("Suppress relative accuracy estimates")    ///
+			 option(norr) 
+			 
+	CHECKBOX ck_boot  10    +30    450    100,           ///
+        groupbox  option(noboot)                          ///
+        label("Bootstrap heterogeneity statistics")       ///
+        onclickon(script rpt_boot_on)                      ///
+        onclickoff(script rpt_boot_off)	
+	
+	EDIT ed_seed 20 +30 40 ., /*error("Set seed for reproducibility of the simulation")*/	option(bootseed)
+	TEXT tx_seed +50 @ 180 ., label("Set seed")
+	
+	EDIT ed_breps 220 @ 40 ., option(bootreps) default(100)
+	TEXT tx_breps +50 @ 120 ., label("Number of replications")
+	
+	
+	RADIO rd_bc 20 +40 200 ., label("Bias-corrected CI") first option(bc)
+	RADIO rd_pci 220 @ 200 ., label("Percentile CI") last option(percentile)
+
+	
+END
+
+LIST cilevel_list
+BEGIN
+	99.9
+	99.5
+	99
+	97.5
+	95
+	90
+	80
+END
+
+PROGRAM check_model_mreg
+BEGIN
+	if  !model.ck_mreg {
+		call rpt.ck_nonull.disable
+		call rpt.ck_norr.disable
+	}
+	if  model.ck_mreg {
+		call rpt.ck_nonull.enable
+		call rpt.ck_norr.enable
+	}
+END
+
+
+SCRIPT notable_off
+BEGIN
+	rpt.ck_nosesp.enable
+	rpt.ck_boot.enable
+	rpt.ed_seed.enable
+	rpt.tx_seed.enable
+	rpt.ed_breps.enable
+	rpt.tx_breps.enable
+	rpt.rd_bc.enable
+	rpt.rd_pci.enable
+	program check_model_mreg
+END
+
+SCRIPT notable_on
+BEGIN
+	rpt.ck_nonull.disable
+	rpt.ck_nosesp.disable
+	rpt.ck_norr.disable
+	rpt.ck_boot.disable
+	rpt.ed_seed.disable
+	rpt.tx_seed.disable
+	rpt.ed_breps.disable
+	rpt.tx_breps.disable
+	rpt.rd_bc.disable
+	rpt.rd_pci.disable
+END
+
+SCRIPT rpt_boot_on
+BEGIN
+	rpt.ed_seed.enable	
+	rpt.tx_seed.enable
+	rpt.ed_breps.enable	
+	rpt.tx_breps.enable
+	rpt.rd_bc.enable	
+	rpt.rd_pci.enable
+END
+
+SCRIPT rpt_boot_off
+BEGIN
+	rpt.ed_seed.disable	
+	rpt.tx_seed.disable
+	rpt.ed_breps.disable	
+	rpt.tx_breps.disable
+	rpt.rd_bc.disable	
+	rpt.rd_pci.disable
+END
+
+PROGRAM rpt_output
+BEGIN
+	optionarg /hidedefault rpt.ed_dp
+	optionarg /hidedefault rpt.ed_pow
+	optionarg /hidedefault rpt.cb_cilevel
+
+	if (!rpt.ck_notable) {
+		option rpt.ck_nonull
+		option rpt.ck_nosesp
+		option rpt.ck_norr
+	}
+	option rpt.ck_notable
+
+	if (rpt.ck_boot){
+		if rpt.ed_seed|rpt.ed_breps|rpt.rd_bc|rpt.rd_pci {
+			put " bootopts("
+			if rpt.ed_seed {
+				put " bootseed=" rpt.ed_seed 
+			}
+			if rpt.ed_breps {
+				put " bootreps=" rpt.ed_breps 
+			}
+			if rpt.rd_bc {
+				put " bootci=bc"
+			}
+			if rpt.rd_pci {
+				put " bootci=percentile"
+			}
+			put ")"
+		}
+	}
+	if (!rpt.ck_boot){
+		put " noboot"
+	}
+
+END

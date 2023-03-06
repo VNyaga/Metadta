@@ -1,0 +1,674 @@
+SCRIPT sroc_PREINIT
+BEGIN
+	create STRING sroc_regionResults 
+	create STRING sroc_legendResults 
+	create STRING sroc_titlesResults
+	create STRING sroc_yaxisResults
+	create STRING sroc_xaxisResults
+	create STRING centeroptionsResults
+	create STRING spointoptionsResults
+	create STRING curveoptionsResults
+	create STRING ellioptionsResults
+	create STRING predoptionsResults
+	create STRING bubbleoptionsResults
+	create STRING hairoptionsResults
+	create STRING bbidoptionsResults
+END
+
+SCRIPT sroc_POSTINIT
+BEGIN
+	program sroc_checkRegionResults
+	program sroc_checkLegendResults
+	program sroc_checkXaxisResults
+	program sroc_checkYaxisResults
+	program sroc_checkTitlesResults
+	program checkCenteroptionsResults
+	program checkSpointoptionsResults
+	program checkCurveoptionsResults
+	program checkEllioptionsResults
+	program checkPredoptionsResults
+	program checkBubbleoptionsResults
+	program checkHairoptionsResults
+	program checkBbidoptionsResults
+END
+
+SCRIPT noellipseoff
+BEGIN
+	sroc.bu_ellioptions.enable
+END
+
+SCRIPT noellipseon
+BEGIN
+	sroc.bu_ellioptions.disable
+END
+
+SCRIPT nopredregionoff
+BEGIN
+	sroc.bu_predoptions.enable
+END
+
+SCRIPT nopredregionon
+BEGIN
+	sroc.bu_predoptions.disable
+END
+
+SCRIPT bubblewtoff
+BEGIN
+	sroc.bu_bubbleoptions.disable
+	sroc.bu_spointoptions.enable
+END
+
+SCRIPT bubblewton
+BEGIN
+	sroc.bu_bubbleoptions.enable
+	sroc.bu_spointoptions.disable
+END
+
+DIALOG sroc, tabtitle("SROC/Cross-hair")
+BEGIN
+	CHECKBOX ck_nosroc 10 10 . ., label("Suppress the SROC/Cross-hair plot(s)")    ///
+			 option(nosroc) onclickon(script sroc_nosroc_on)  ///
+			 onclickoff(script sroc_nosroc_off) default(0)
+	CHECKBOX ck_noellipse 10 +30 . ., label("Suppress the confidence region")    ///
+			 option(noellipse) ///
+			 onclickon(script noellipseon) onclickoff(script noellipseoff)
+	CHECKBOX ck_noprediction 10 +30 . ., label("Suppress the prediction region")    ///
+			 option(nopredregion)  ///
+			 onclickon(script nopredregionon) onclickoff(script nopredregionoff)
+	CHECKBOX ck_bbwt 10 +30 . ., label("Display bubbles")    ///
+		 option(bubblewt) ///
+		 onclickon(script bubblewton) onclickoff(script bubblewtoff)
+	CHECKBOX ck_bbid 10 +30 . ., label("Display unique ids for each study")    ///
+		 option(bubbleid) onclickon(sroc.bu_bbidopts.enable) onclickoff(sroc.bu_bbidopts.disable)
+	BUTTON bu_bbidopts +180 @ 100 ., label("Properties") onpush(program show_bbidoptions)	 
+	BUTTON bu_centeroptions 10 +30 170 ., label("Center point properties")  ///
+		   onpush(program show_centeroptions) 
+	BUTTON bu_spointoptions 270 @ 170 ., label("Scatter point properties") ///
+		   onpush(program show_spointoptions) 
+	BUTTON bu_curveoptions 10 +30 170 ., label("SROC curve properties") ///
+			onpush(program show_curveoptions) 
+	BUTTON bu_ellioptions 270 @ 170 ., label("Confidence region line properties") ///
+			onpush(program show_ellioptions) 
+	BUTTON bu_predoptions 10 +30 170 ., label("Prediction line properties") ///
+			onpush(program show_predoptions) 
+	BUTTON bu_bubbleoptions 270 @ 170 ., label("Bubbles properties") ///
+			onpush(program show_bubbleoptions) 
+	BUTTON bu_hairoptions 10 +30 170 ., label("Cross-hair line properties") ///
+			onpush(program show_hairoptions) 
+	TEXT tx_colorvector 240 @ 170 ., label("Colors")
+	EDIT ed_colorvector +30 @ 170 ., label("Colors") option(colorvector) 
+	
+	GROUPBOX gb_soptions  10    +40    470    260,          ///
+        label("Overall plot properties")
+
+	BUTTON bu_yaxis 20 +30 100 ., label("Y axis") onpush(script sroc_show_yaxis)
+	BUTTON bu_xaxis 200 @ 100 ., label("X axis") onpush(script sroc_show_xaxis)
+	TEXT tx_scheme 350 300 100 ., label("Scheme")
+	COMBOBOX cb_scheme 350 +20 100 .,   ///
+	option(scheme) dropdownlist contents(schemes)
+
+	BUTTON bu_titles 20 +30 100 ., label("Titles") onpush(script sroc_show_titles)
+	BUTTON bu_slegendoptions 200 @ 100 ., label("Legend") onpush(program sroc_show_legend)
+	BUTTON bu_region 350 @ 100 ., label("Region properties") onpush(program sroc_show_regionOpts)
+	
+	GROUPBOX gb_gsize  20    +30    430    60,          ///
+        label("Graph size")
+	EDIT ed_width  +20 +20 50 ., label("Width") option(xsize)
+	TEXT tx_width  +60 @ 100 ., label("Width(inches)") 
+	
+	EDIT ed_height  +100 @ 50 ., label("Height") option(ysize)
+	TEXT tx_height  +60 @ 100 ., label("Height(inches)")
+	
+	CHECKBOX ck_scale  20    +50  200    80,           ///
+        groupbox                                                ///
+        label("Scale text, markers and lines")            ///
+        onclickon(script sroc_scale_on)                         ///
+        onclickoff(script sroc_scale_off)
+		
+	EDIT ed_scale  +20 +20 30 ., label("Scale") default(1) option(scale)
+	TEXT tx_scale  +30 @ 100 ., label("Scale multiplier") 
+	
+	CHECKBOX ck_ar  250   450  200    80,           ///
+        groupbox                                                ///
+        label("Override aspect ratio of plot region")            ///
+        onclickon(script sroc_ar_on)                         ///
+        onclickoff(script sroc_ar_off)
+		
+	TEXT tx_ar  +20 +20 100 ., label("Aspect ratio") 
+	EDIT ed_ar  @ +20 50 ., label("Aspect ratio")
+	
+	TEXT tx_placement  350 470 70 ., label("Placement") 
+	COMBOBOX cb_placement @ +20 70 ., dropdownlist contents(compass) option(placement) 
+END
+
+SCRIPT sroc_nosroc_off
+BEGIN
+	sroc.ck_bbwt.enable
+	sroc.ck_bbid.enable
+	*sroc.bu_bbidopts.enable
+	sroc.bu_centeroptions.enable
+	sroc.bu_spointoptions.enable
+	sroc.bu_bubbleoptions.enable
+	sroc.gb_soptions.enable
+	sroc.bu_yaxis.enable
+	sroc.bu_xaxis.enable
+	sroc.bu_region.enable
+	sroc.bu_titles.enable
+	sroc.bu_slegendoptions.enable
+	sroc.gb_gsize.enable
+	sroc.ed_width.enable
+	sroc.tx_width.enable
+	sroc.ed_height.enable
+	sroc.tx_height.enable
+	sroc.ck_scale.enable
+	sroc.ed_scale.enable
+	sroc.tx_scale.enable
+	sroc.ck_ar.enable
+	sroc.tx_ar.enable
+	sroc.ed_ar.enable
+	sroc.tx_placement.enable
+	sroc.cb_placement.enable
+	sroc.tx_scheme.enable
+	sroc.cb_scheme.enable
+	program check_model_rd_me
+	program check_model_ck_mreg
+	program check_bbid
+END
+
+
+SCRIPT sroc_nosroc_on
+BEGIN
+	sroc.ck_noellipse.disable
+	sroc.ck_noprediction.disable
+	sroc.ck_bbwt.disable
+	sroc.ck_bbid.disable
+	sroc.bu_bbidopts.disable
+	sroc.bu_centeroptions.disable
+	sroc.bu_spointoptions.disable
+	sroc.bu_curveoptions.disable
+	sroc.bu_ellioptions.disable
+	sroc.bu_predoptions.disable
+	sroc.bu_bubbleoptions.disable
+	sroc.bu_hairoptions.disable
+	sroc.gb_soptions.disable
+	sroc.bu_yaxis.disable
+	sroc.bu_xaxis.disable
+	sroc.bu_region.disable
+	sroc.bu_titles.disable
+	sroc.bu_slegendoptions.disable
+	sroc.gb_gsize.disable
+	sroc.ed_width.disable
+	sroc.tx_width.disable
+	sroc.ed_height.disable
+	sroc.tx_height.disable
+	sroc.ck_scale.disable
+	sroc.ed_scale.disable
+	sroc.tx_scale.disable
+	sroc.ck_ar.disable
+	sroc.tx_ar.disable
+	sroc.ed_ar.disable
+	sroc.tx_placement.disable
+	sroc.cb_placement.disable
+	sroc.tx_scheme.disable
+	sroc.cb_scheme.disable
+	sroc.tx_colorvector.disable
+	sroc.ed_colorvector.disable
+END
+
+
+PROGRAM check_model_rd_me
+BEGIN
+	if model.rd_me  {
+		call sroc.bu_hairoptions.disable
+		call sroc.ck_noellipse.enable
+		call sroc.ck_noprediction.enable
+		call sroc.bu_curveoptions.enable
+		call sroc.bu_ellioptions.enable
+		call sroc.bu_predoptions.enable
+	}
+	if model.rd_fe  {
+		call sroc.bu_hairoptions.enable
+		call sroc.ck_noellipse.disable
+		call sroc.ck_noprediction.disable
+		call sroc.bu_curveoptions.disable
+		call sroc.bu_ellioptions.disable
+		call sroc.bu_predoptions.disable		
+	}
+END
+
+PROGRAM check_bbid
+BEGIN
+	if !sroc.ck_bbid {
+		call sroc.bu_bbidopts.disable
+	}
+	if sroc.ck_bbid {
+		call sroc.bu_bbidopts.enable
+	}
+END
+
+SCRIPT sroc_scale_on
+BEGIN
+	sroc.ed_scale.enable
+	sroc.tx_scale.enable
+END
+
+SCRIPT sroc_scale_off
+BEGIN
+	sroc.ed_scale.disable
+	sroc.tx_scale.disable
+END
+
+SCRIPT sroc_ar_on
+BEGIN
+	sroc.ed_ar.enable
+	sroc.tx_ar.enable
+	sroc.tx_placement.enable
+	sroc.cb_placement.enable
+END
+
+SCRIPT sroc_ar_off
+BEGIN
+	sroc.ed_ar.disable
+	sroc.tx_ar.disable
+	sroc.tx_placement.disable
+	sroc.cb_placement.disable
+END
+
+PROGRAM check_model_ck_mreg
+BEGIN
+	if  model.ck_mreg {
+		call sroc.ed_colorvector.enable
+		call sroc.tx_colorvector.enable	
+		call forest.bu_isq.disable
+	}
+	if  !model.ck_mreg {
+		call sroc.ed_colorvector.disable
+		call sroc.tx_colorvector.disable
+		call forest.bu_isq.enable
+	}
+END
+/*=====================================================================================*/
+PROGRAM show_bbidoptions
+BEGIN
+        call create CHILD gr_markerlabel_options AS bbidoptions, allowsubmit
+        call bbidoptions.setExitString bbidoptionsResults
+        call bbidoptions.settitle "Marker Label properties"
+        call bbidoptions.setExitAction "program checkBbidoptionsResults"
+        call bbidoptions.setSubmitAction "program bbidoptionsSubmit"
+END
+
+PROGRAM checkBbidoptionsResults
+BEGIN
+        if bbidoptionsResults {
+                call sroc.bu_bbidopts.formatlabel "Properties {0}" " *"
+        }
+        else {
+                call sroc.bu_bbidopts.formatlabel "Properties {0}" "  "
+        }
+END
+
+PROGRAM bbidoptionsSubmit
+BEGIN
+        call program checkBbidoptionsResults
+        call Submit
+END
+
+/*=====================================================================================*/
+PROGRAM show_hairoptions
+BEGIN
+        call create CHILD gr_line_options AS hairoptions, allowsubmit
+        call hairoptions.setExitString hairoptionsResults
+        call hairoptions.settitle "Line properties"
+        call hairoptions.setExitAction "program checkHairoptionsResults"
+        call hairoptions.setSubmitAction "program hairoptionsSubmit"
+END
+
+PROGRAM checkHairoptionsResults
+BEGIN
+        if hairoptionsResults {
+                call sroc.bu_hairoptions.formatlabel "Cross-hair line properties {0}" " *"
+        }
+        else {
+                call sroc.bu_hairoptions.formatlabel "Cross-hair line properties {0}" "  "
+        }
+END
+
+PROGRAM hairoptionsSubmit
+BEGIN
+        call program checkHairoptionsResults
+        call Submit
+END
+/*=====================================================================================*/
+PROGRAM show_bubbleoptions
+BEGIN
+        call create CHILD metadta_marker_properties AS bubbleoptions, allowsubmit
+        call bubbleoptions.setExitString bubbleoptionsResults
+        call bubbleoptions.settitle "Line properties"
+        call bubbleoptions.setExitAction "program checkBubbleoptionsResults"
+        call bubbleoptions.setSubmitAction "program bubbleoptionsSubmit"
+END
+
+PROGRAM checkBubbleoptionsResults
+BEGIN
+        if bubbleoptionsResults {
+                call sroc.bu_bubbleoptions.formatlabel "Bubbles properties {0}" " *"
+        }
+        else {
+                call sroc.bu_bubbleoptions.formatlabel "Bubbles properties {0}" "  "
+        }
+END
+
+PROGRAM bubbleoptionsSubmit
+BEGIN
+        call program checkBubbleoptionsResults
+        call Submit
+END
+
+/*=====================================================================================*/
+PROGRAM show_predoptions
+BEGIN
+        call create CHILD gr_line_options AS predoptions, allowsubmit
+        call predoptions.setExitString predoptionsResults
+        call predoptions.settitle "Line properties"
+        call predoptions.setExitAction "program checkPredoptionsResults"
+        call predoptions.setSubmitAction "program predoptionsSubmit"
+END
+
+PROGRAM checkPredoptionsResults
+BEGIN
+        if predoptionsResults {
+                call sroc.bu_predoptions.formatlabel "Prediction line properties {0}" " *"
+        }
+        else {
+                call sroc.bu_predoptions.formatlabel "Prediction line properties {0}" "  "
+        }
+END
+
+PROGRAM predoptionsSubmit
+BEGIN
+        call program checkPredoptionsResults
+        call Submit
+END
+/*=====================================================================================*/
+PROGRAM show_ellioptions
+BEGIN
+        call create CHILD gr_line_options AS ellioptions, allowsubmit
+        call ellioptions.setExitString ellioptionsResults
+        call ellioptions.settitle "Line properties"
+        call ellioptions.setExitAction "program checkEllioptionsResults"
+        call ellioptions.setSubmitAction "program ellioptionsSubmit"
+END
+
+PROGRAM checkEllioptionsResults
+BEGIN
+        if ellioptionsResults {
+                call sroc.bu_ellioptions.formatlabel "Confidence region line {0}" " *"
+        }
+        else {
+                call sroc.bu_ellioptions.formatlabel "Confidence region line {0}" "  "
+        }
+END
+
+PROGRAM ellioptionsSubmit
+BEGIN
+        call program checkEllioptionsResults
+        call Submit
+END
+/*=====================================================================================*/
+PROGRAM show_curveoptions
+BEGIN
+        call create CHILD gr_line_options AS curveoptions, allowsubmit
+        call curveoptions.setExitString curveoptionsResults
+        call curveoptions.settitle "Line properties"
+        call curveoptions.setExitAction "program checkCurveoptionsResults"
+        call curveoptions.setSubmitAction "program curveoptionsSubmit"
+END
+
+PROGRAM checkCurveoptionsResults
+BEGIN
+        if curveoptionsResults {
+                call sroc.bu_curveoptions.formatlabel "SROC curve properties {0}" " *"
+        }
+        else {
+                call sroc.bu_curveoptions.formatlabel "SROC curve properties {0}" "  "
+        }
+END
+
+PROGRAM curveoptionsSubmit
+BEGIN
+        call program checkCurveoptionsResults
+        call Submit
+END
+/*=====================================================================================*/
+PROGRAM show_spointoptions
+BEGIN
+        call create CHILD metadta_marker_properties AS spointoptions, allowsubmit
+        call spointoptions.setExitString spointoptionsResults
+        call spointoptions.settitle "Marker properties"
+        call spointoptions.setExitAction "program checkSpointoptionsResults"
+        call spointoptions.setSubmitAction "program spointoptionsSubmit"
+END
+
+PROGRAM checkSpointoptionsResults
+BEGIN
+        if spointoptionsResults {
+                call sroc.bu_spointoptions.formatlabel "Scatter point properties {0}" " *"
+        }
+        else {
+                call sroc.bu_spointoptions.formatlabel "Scatter point properties {0}" "  "
+        }
+END
+
+PROGRAM spointoptionsSubmit
+BEGIN
+        call program checkSpointoptionsResults
+        call Submit
+END
+
+/*=====================================================================================*/
+PROGRAM show_centeroptions
+BEGIN
+        call create CHILD metadta_marker_properties AS centeroptions, allowsubmit
+        call centeroptions.setExitString centeroptionsResults
+        call centeroptions.settitle "Marker properties"
+        call centeroptions.setExitAction "program checkCenteroptionsResults"
+        call centeroptions.setSubmitAction "program centeroptionsSubmit"
+END
+
+PROGRAM checkCenteroptionsResults
+BEGIN
+        if centeroptionsResults {
+                call sroc.bu_centeroptions.formatlabel "Center point properties {0}" " *"
+        }
+        else {
+                call sroc.bu_centeroptions.formatlabel "Center point properties {0}" "  "
+        }
+END
+
+PROGRAM centeroptionsSubmit
+BEGIN
+        call program checkCenteroptionsResults
+        call Submit
+END
+/*=====================================================================================*/
+PROGRAM sroc_show_regionOpts
+BEGIN
+        call create CHILD gr_region_options AS sroc_region, allowsubmit
+        call sroc_region.setExitString sroc_regionResults
+        call sroc_region.settitle "resource LBL_REGION_PROPERTIES"
+        call sroc_region.setExitAction "program sroc_checkRegionResults"
+        call sroc_region.setSubmitAction "program sroc_regionSubmit"
+END
+
+PROGRAM sroc_checkRegionResults
+BEGIN
+        if sroc_regionResults {
+                call sroc.bu_region.formatlabel "resource LBL_REGION_PROPERTIES_FMT" " *"
+        }
+        else {
+                call sroc.bu_region.formatlabel "resource LBL_REGION_PROPERTIES_FMT" "  "
+        }
+END
+
+PROGRAM sroc_regionSubmit
+BEGIN
+        call program sroc_checkRegionResults
+        call Submit
+END
+
+/*=====================================================================================*/
+PROGRAM sroc_show_legend
+BEGIN
+        call create CHILD metadta_legend AS sroc_legend, allowsubmit
+        call sroc_legend.setExitString sroc_legendResults
+        call sroc_legend.settitle "Legend Properties"
+        call sroc_legend.setExitAction "program sroc_checkLegendResults"
+        call sroc_legend.setSubmitAction "program sroc_legendSubmit"
+END
+
+PROGRAM sroc_checkLegendResults
+BEGIN
+        if sroc_legendResults {
+			call sroc.bu_slegendoptions.formatlabel "Legend Properties {0}" " *"
+        }
+        else {
+			call sroc.bu_slegendoptions.formatlabel "Legend Properties {0}" "  "
+        }
+END
+
+PROGRAM sroc_legendSubmit
+BEGIN
+        call program sroc_checkLegendResults
+        call Submit
+END
+/*=====================================================================================*/
+SCRIPT sroc_show_yaxis
+BEGIN
+        create CHILD metadta_yaxis AS sroc_yaxis, allowsubmit
+        sroc_yaxis.setExitString sroc_yaxisResults
+        sroc_yaxis.settitle "Y axis"
+        sroc_yaxis.setExitAction "program sroc_checkYaxisResults"
+        sroc_yaxis.setSubmitAction "program sroc_yaxisSubmit"
+END
+
+PROGRAM sroc_checkYaxisResults
+BEGIN
+        if sroc_yaxisResults {
+			call sroc.bu_yaxis.formatlabel "Y axis {0}" " *"
+        }
+        else {
+			call sroc.bu_yaxis.formatlabel "Y axis {0}" "  "
+        }
+END
+
+PROGRAM sroc_yaxisSubmit
+BEGIN
+        call program sroc_checkYaxisResults
+        call Submit
+END
+
+/*=====================================================================================*/
+SCRIPT sroc_show_xaxis
+BEGIN
+        create CHILD metadta_xaxis AS sroc_xaxis, allowsubmit
+        sroc_xaxis.setExitString sroc_xaxisResults
+        sroc_xaxis.settitle "X axis"
+        sroc_xaxis.setExitAction "program sroc_checkXaxisResults"
+        sroc_xaxis.setSubmitAction "program sroc_xaxisSubmit"
+END
+
+PROGRAM sroc_checkXaxisResults
+BEGIN
+        if sroc_xaxisResults {
+			call sroc.bu_xaxis.formatlabel "X axis {0}" " *"
+        }
+        else {
+			call sroc.bu_xaxis.formatlabel "X axis {0}" "  "
+        }
+END
+
+PROGRAM sroc_xaxisSubmit
+BEGIN
+        call program sroc_checkXaxisResults
+        call Submit
+END
+/*=====================================================================================*/
+SCRIPT sroc_show_titles
+BEGIN
+        create CHILD metadta_titles AS sroc_titles, allowsubmit
+        sroc_titles.setExitString sroc_titlesResults
+        sroc_titles.settitle "Titles"
+        sroc_titles.setExitAction "program sroc_checkTitlesResults"
+        sroc_titles.setSubmitAction "program sroc_titlessSubmit"
+END
+
+PROGRAM sroc_checkTitlesResults
+BEGIN
+        if sroc_titlesResults {
+			call sroc.bu_titles.formatlabel "Titles {0}" " *"
+        }
+        else {
+			call sroc.bu_titles.formatlabel "Titles {0}" "  "
+        }
+END
+
+PROGRAM sroc_titlesSubmit
+BEGIN
+        call program sroc_checkTitlesResults
+        call Submit
+END
+/*=====================================================================================*/
+PROGRAM sroc_output
+BEGIN
+	option sroc.ck_nosroc
+	if !sroc.ck_nosroc {
+		option sroc.ck_noellipse
+		option sroc.ck_noprediction
+		option sroc.ck_bbwt
+		option sroc.ck_bbid
+
+		optionarg sroc.ed_colorvector
+		if centeroptionsResults {
+			put " centeroptions(" centeroptionsResults ")"
+		}
+		if spointoptionsResults {
+			put " spointoptions(" spointoptionsResults ")"
+		}
+		if curveoptionsResults {
+			put	" curveoptions(" curveoptionsResults ")"
+		}
+		if ellioptionsResults {
+			put " ellioptions(" ellioptionsResults ")"
+		}
+		if predoptionsResults  {
+			put	" predoptions(" predoptionsResults ")"
+		}
+		if bubbleoptionsResults {
+			put " bubbleoptions(" bubbleoptionsResults ")"
+		}
+		if hairoptionsResults {
+			put " hairoptions(" hairoptionsResults ")"
+		}
+		if sroc_legendResults {
+			put " legend(" sroc_legendResults ")"
+		}
+		if bbidoptionsResults {
+			put " bubbleidoptions(" bbidoptionsResults ")"
+		}
+		if sroc_regionResults|sroc_yaxisResults|sroc_xaxisResults|sroc_titlesResults | !default(sroc.cb_scheme)|sroc.ed_height |sroc.ed_width | !H(sroc.ed_ar) |!H(sroc.cb_placement) | !H(sroc.ed_scale) {
+			put " soptions(" 
+			put	" " sroc_regionResults  " "
+			put	" "	sroc_yaxisResults " "
+			put	" "	sroc_xaxisResults  " "
+			put	" "	sroc_titlesResults  " "
+			optionarg /hidedefault sroc.cb_scheme
+			optionarg sroc.ed_height
+			optionarg sroc.ed_width
+			if sroc.ed_ar | sroc.cb_placement { 
+				put " aspectratio(" sroc.ed_ar "," sroc.cb_placement ")"
+			}
+			optionarg /hidedefault sroc.ed_scale
+			put ")"
+		}
+	}
+END

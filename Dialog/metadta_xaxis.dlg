@@ -1,0 +1,24 @@
+/*
+   xaxis.dlg
+
+*!  VERSION 1.0.0  16Mar2018
+
+*/
+
+VERSION 14
+
+INCLUDE _std_mlarge
+DEFINE _dlght   250
+INCLUDE header
+
+HELP hlp1, view("help twoway")
+RESET res1
+
+INCLUDE gr_xaxis
+
+PROGRAM command
+BEGIN
+	put " " /program gr_xaxis_output
+END
+
+

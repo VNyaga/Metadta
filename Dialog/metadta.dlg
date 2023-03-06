@@ -1,0 +1,73 @@
+/*
+*! metadta dialog version 1.0.0  07MAR2018 for metadta version 1.0.0
+*! victoria.nyawiranyaga@wiv-isp.be
+
+Meta-analysis of diagnostic studies
+
+[by varlist:] metadta tp tn fp fn [indepvars] [if] [in] , sid(studyvar) [options]
+
+To install in User Statistics menu via Stata commands:
+
+	. window menu append item "stUserStatistics" ///
+	  "Meta-regression of diagnostic accuracy studies (&metadta)" "db metadta"
+
+	. window menu refresh
+ 
+ To permanently install, place the commands in your -profile.do- file.
+*/
+
+VERSION 14.0
+
+INCLUDE _std_large
+DEFINE _dlght   550
+INCLUDE header
+
+HELP hlp1, view("help metadta")
+RESET res1
+
+PROGRAM POSTINIT_PROGRAM
+BEGIN
+	call script max_setListNoBHHH
+	call script max_setOptionXTME
+END
+
+
+INCLUDE metadta_model
+INCLUDE byifin
+INCLUDE metadta_max
+INCLUDE metadta_int
+INCLUDE metadta_rpt
+INCLUDE metadta_forest
+INCLUDE metadta_sroc
+
+
+PROGRAM command
+BEGIN
+	INCLUDE _by_pr
+	put "metadta "
+	varlist model.vl_dep [model.vl_indep]
+	put " " /program ifin_output
+	require model.vn_sid
+	beginoptions
+		optionarg model.vn_sid
+		put " model(" 
+			option radio(model rd_me rd_fe) 
+		put ")" 
+		optionarg /hidedefault model.cb_covtype
+		optionarg /hidedefault model.cb_cveffect
+		optionarg model.ed_reflevels
+		put " " /program rpt_output
+		put " " /program forest_output
+		put " " /program sroc_output
+		put " optimopts("
+		if integration.rd_nip {
+			require integration.ed_nip
+			optionarg /hidedefault integration.ed_nip
+		}
+		option integration.rd_lap
+		put " " /program max_output
+		put ")"
+	endoptions
+	
+END	
+
