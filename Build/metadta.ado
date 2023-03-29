@@ -1559,9 +1559,11 @@ version 14.0
 		printmat, matrixout(`refe') type(refe) dp(`dp') `design' 
 	}
 	//logodds
-	/*if  (("`sumtable'" == "all") |(strpos("`sumtable'", "logit") != 0)) {
+	/*
+	if  (("`sumtable'" == "all") |(strpos("`sumtable'", "logit") != 0)) {
 		printmat, matrixout(`logodds') type(logit) dp(`dp') power(`power') `continuous' cveffect(`cveffect')
-	}*/
+	}
+	*/
 	//abs
 	if  (("`sumtable'" == "all") |(strpos("`sumtable'", "abs") != 0)) {
 		printmat, matrixout(`absout') type(abs) dp(`dp') power(`power') `continuous' cveffect(`cveffect')
@@ -1591,7 +1593,7 @@ version 14.0
 			`subgroup' `overall' sumstatse(`sumstatse') sumstatsp(`sumstatsp')  	///
 			isq2(`isq2') bghet(`bghet') bshet(`bshet') model(`model') bvar(`BVar') 	///
 			catreg(`catreg') outplot(`outplot') interaction(`interaction') ///
-			se_lrtest(`se_lrtest') sp_lrtest(`sp_lrtest') p(`p') `mc' `design'
+			se_lrtest(`se_lrtest') sp_lrtest(`sp_lrtest') p(`p') `mc' `design' level(`level')
 	}
 	
 	//Draw the forestplot
