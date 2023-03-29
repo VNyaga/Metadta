@@ -77,7 +77,7 @@ version 14.0
 	noSRoc /*No SROC*/
 	noOVerall /*Dont report the overall in the Itable & fplot*/ 
 	noSUBgroup /*Dont report the subgroup in the Itable & fplot*/ 
-	SUMMaryonly /*Present only summary in the Itable & fplot*/
+	SUMMaryonly /*Present only summary in the Itable, SROC & fplot*/
 	DOWNload(string) /*Keep a copy of data used in the plotting*/
 	Alphasort /*Sort the categorical variable alphabetically*/
 	FOptions(string asis) /*Options specific to the forest plot*/
@@ -1612,7 +1612,7 @@ version 14.0
 		}
 		use "`master'", clear
 		sroc `varlist',  model(`model') selogodds(`selogodds') splogodds(`splogodds') v(`V') bvar(`BVar') ///
-			groupvar(`groupvar') cimethod(`cimethod') level(`level') p(`p') `soptions' `stratify'
+			groupvar(`groupvar') cimethod(`cimethod') level(`level') p(`p') `soptions' `stratify' `summaryonly'
 	}
 	
 	if "`tradeoff'" != "" {		
@@ -4803,7 +4803,7 @@ end
 			p(integer 0) /*No of parameters in the regression equation*/
 			cimethod(string) /*How to compute the study-specific CI*/
 			LEVel(integer 95) /*Significance level*/
-			
+			SUMMaryonly
 			COLorpalette(string) /*soptions: Colors seperated by space*/
 			noPREDiction  /*soptions:no Prediction region*/
 			noCREG  /*no confidence region*/
