@@ -3,7 +3,7 @@ CREATED:	8 Sep 2017
 AUTHOR:		Victoria N Nyaga
 PURPOSE: 	To fit a bivariate random-effects model to diagnostic data and 
 			produce a series of graphs(sroc and forestsplots).
-VERSION: 	2.0.0
+VERSION: 	3.0.0
 NOTES
 1. Variable names should not contain underscore(_)
 2. Data should be sorted and no duplicates
@@ -38,8 +38,13 @@ DATE:						DETAILS:
 10.10.2022					introduce variance only on se or sp
 19.10.2022					Cutoff optimization
 15.02.2023					rename independent to general
-
+27.11.2023					Include outplot(OR)	
+							gof - option to display goodness of fit
+							Simulate posterior distributions
+							smooth:Option to generate smooth estimates
+							
 FUTURE 						Work on the absolutes for the paired analysis; 
+							if version 16 or later; use melogit instead of meqrlogit
 
 */
 
@@ -60,7 +65,7 @@ version 14.0
 	LAbel(string asis) /*namevar=namevar, yearvar=yearvar*/
 	DP(integer 2) /*Decimal place*/
 	POWer(integer 0) /*Exponentiating power*/  
-	MODel(string asis) /*fixed (1 < n < 3) | random (random)*/ 
+	MODel(string asis) /*fixed (1 < n < 3) | random */ 
 	COV(string asis) /*UNstructured(default)|INdependent | IDentity | EXchangeable, also includes second covariance for the network*/
 	SORTby(varlist) /*order data by varlist. How data appears on the table and forest plot*/
 	INteraction(string) /*sesp(default)|se|sp*/ 
@@ -75,6 +80,7 @@ version 14.0
 	noMC /*No Model comparison - Saves time*/
 	PROGress /*See the model fitting*/
 	noSRoc /*No SROC*/
+	noWT  /*Suppress weights*/
 	noOVerall /*Dont report the overall in the Itable & fplot*/ 
 	noSUBgroup /*Dont report the subgroup in the Itable & fplot*/ 
 	SUMMaryonly /*Present only summary in the Itable, SROC & fplot*/
@@ -84,11 +90,12 @@ version 14.0
 	SOptions(string asis) /*Options specific to the sroc plot*/
 	by(varname)  /*the grouping variable*/
 	PAIRed  /*Paired; now called CBnetwork*/
-	CBnetwork /*AB network*/
+	CBnetwork /*CB network*/
 	ABnetwork /*AB network*/
 	REF(string asis) /*Reference level in network, comparative analysis */
 	TRADEoff	 
- 
+	SMooth nsims(integer 800) //max dim in stata ic
+	GOF //Goodness of fit
 	] ;
 	#delimit cr
 	
@@ -97,12 +104,18 @@ version 14.0
 	marksample touse, strok 
 	qui drop if !`touse'
 
-	tempvar rid se sp event total invtotal use id neolabel es lci uci grptotal uniq rowid obsid
-	tempname logodds absout logoddsi absouti rrout rrouti sptestnl setestnl sptestnli setestnli selogodds absoutse selogoddsi ///
-		absoutsei serrout serrouti splogodds absoutsp splogoddsi absoutspi ///
-		sprrout sprrouti coefmat coefvar BVar BVari WVar WVari Esigma omat isq2 isq2i Isq Isq2 Isq2i ///
+	tempvar rid se sp event total invtotal use id neolabel es lci uci ///
+			modeles modellci modeluci grptotal uniq rowid obsid ///
+			newobs predevent iw
+			
+	tempname logodds absout popabsout logoddsi absouti popabsouti rrout rrouti sptestnlrr setestnlrr sptestnlrri setestnlrri ///
+		orout orouti sptestnlor setestnlor sptestnlori setestnlori selogodds absoutse popabsoutse selogoddsi ///
+		absoutsei popabsoutsei serrout serrouti seorout seorouti popserrout popserrouti popseorout popseorouti ///
+		splogodds absoutsp popabsoutsp splogoddsi absoutspi popabsoutspi poprrouti poprrout poporouti poporout ///
+		sprrout sprrouti sporout sporouti popsprrout popsprrouti popsporout popsporouti  ///
+		coefmat coefvar BVar BVari WVar WVari Esigma omat isq2 isq2i Isq Isq2 Isq2i ///
 		bghet refe bgheti refei lrtestp V Vi dftestnl ptestnl semc semci spmc spmci samtrix ///
-		serow sprow serrow sprrow nltest cutmat
+		serow sprow  pserow psprow postserow postsprow serrow sprrow pserrow psprrow nltestrr cutmat nltestor matgof
 	
 	if _by() {
 		global by_index_ = _byindex()
@@ -125,7 +138,7 @@ version 14.0
 		}
 	}
 	
-	/*Check for mu; its reserved*/
+	/*Check for se and sp; they are reserved*/
 	qui ds
 	local vlist = r(varlist)
 	foreach v of local vlist {
@@ -134,6 +147,7 @@ version 14.0
 			exit _rc
 		}
 	}
+
 	//define the design of analysis
 	if "`paired'" != "" {
 		di as res "Use of the option -paired- is deprecated and replaced with -cbnetwork-"
@@ -178,7 +192,6 @@ version 14.0
 			exit
 		}
 	}
-
 	
 	//default
 	if "`refpos'" == "" {
@@ -262,7 +275,7 @@ version 14.0
 				}
 			}
 			
-			if "`abnetwork'`cbnetwork'" != "" & "`wcov'" != "" {
+			if "`abnetwork'`cbnetwork'`comparative'" != "" & "`wcov'" != "" {
 				if ustrregexm("`wcov'", "ind", 1){
 					local wcov = "independent"
 				}
@@ -281,11 +294,11 @@ version 14.0
 		if "`bcov'" == ""  {
 			local bcov = "unstructured"	
 		}
-		if "`abnetwork'`cbnetwork'" != "" {
-			if "`wcov'" == "" {
+		if "`abnetwork'`cbnetwork'`comparative'" != "" {
+			if "`wcov'" == "" & ("`abnetwork'`cbnetwork'" != "") {
 				local wcov = "independent"
 			}
-			if "`wcov'" == "zero" {
+			if "`wcov'" == "zero" | ("`comparative'" != "" & "`wcov'" == "") {
 				local wcov 
 			}
 		}
@@ -470,6 +483,17 @@ version 14.0
 		
 	//Long format
 	longsetup `varlist', rid(`rid') se(`se') event(`event') total(`total') `design' rowid(`rowid')  idpair(`idpair') assignment(`assignment') first(`first')
+	
+	//Gen variables to store weight and model-based estimates
+	qui {		
+		cap gen _ESAMPLE = 0
+		cap drop _WT
+		gen _WT = .
+		cap gen `modeles' = .
+		cap gen `modellci' = .
+		cap gen `modeluci' = .
+	}
+	
 	//Index
 	if "`design'" == "cbnetwork" {
 		tempvar ipair
@@ -484,14 +508,21 @@ version 14.0
 			di as error "The by() variable should be a string"
 			exit, _rc
 		}
-		if strpos(`"`varlist'"', "`by'") == 0 {
+		local found 0
+		foreach v of local varlist {
+			if "`v'" == "`by'" {
+				local found = 1
+				continue, break
+			}
+		}
+		if !`found' {
+		/*if strpos(`"`varlist'"', "`by'") == 0*/ 
 			tempvar byvar
 			my_ncod `byvar', oldvar(`by')
 			drop `by'
 			rename `byvar' `by'
 		}
-	}
-	
+	}	
 		
 	buildregexpr `varlist', cveffect(`cveffect') interaction(`interaction') se(`se') sp(`sp') `alphasort' `design'  ipair(`ipair') baselevel(`ref')
 	
@@ -636,7 +667,7 @@ version 14.0
 				local groupvar : word 1 of `catreg'
 			}
 		}
-		if "`outplot'" == "rr" & "`varx'" !="" {
+		if ("`outplot'" == "rr" | "`outplot'" == "or")& "`varx'" !="" {
 			local groupvar : word 1 of `catreg'
 		}
 	}
@@ -650,7 +681,7 @@ version 14.0
 	if "`design'" == "abnetwork" {
 		local groupvar "`first'"
 		local overall "nooverall"
-		if "`outplot'" == "rr" {
+		if "`outplot'" == "rr" | "`outplot'" == "or" {
 			local itable "noitable"
 		}
 	}
@@ -685,6 +716,10 @@ version 14.0
 	
 	if "`groupvar'" == "" {
 		local subgroup nosubgroup
+	}
+	//nobox if summaruonly
+	if "`summaryonly'" != "" {
+		local box "nobox"
 	}
 	
 	qui gen `sp' = 1 - `se'
@@ -724,8 +759,14 @@ version 14.0
 		local sumstatsp "Specificity"
 	}
 	else {
-		local sumstatse "Relative Sensitivity"
-		local sumstatsp "Relative Specificity"
+		if "`outplot'" == "or"  {
+			local sumstatse "Sensitivity OR"
+			local sumstatsp "Specificity OR"
+		}
+		else {
+			local sumstatse "Relative Sensitivity"
+			local sumstatsp "Relative Specificity"
+		}
 	}
 	
 	//Should run atleast once
@@ -809,9 +850,7 @@ version 14.0
 				di as res _n  "Warning: Fixed-effects model fitted instead."
 			}
 		}
-		
-
-		
+				
 		di as res _n "*********************************** Fitted model`stratalab' ***************************************" 
 		
 		tokenize `varlist'
@@ -840,7 +879,7 @@ version 14.0
 			di "{phang} Ipair = 0 if 1st set{p_end}"
 			di "{phang} Ipair = 1 if 2nd set{p_end}"
 		}
-		if "`design'" == "abnetwork" {
+		if "`design'" == "abnetwork" | "`design'" == "comparative" {
 			if "`wcov'" == "identity" {
 				di "{phang}`first'_lse, `first'_lsp  ~ N(0, `first'.sigma2){p_end}"
 			}
@@ -881,7 +920,7 @@ version 14.0
 	
 		*Run model if more than 1 study
 		if `Nobs' > 1 {
-			`echo' madamodel `event' `total' `se' `sp' `strataif', bcov(`bcov') wcov(`wcov') modelopts(`modeloptsi') model(`modeli') ///
+			`echo' fitmodel `event' `total' `se' `sp' `strataif', bcov(`bcov') wcov(`wcov') modelopts(`modeloptsi') model(`modeli') ///
 			regexpression(`regexpression') sid(`studyid') `design' ipair(`ipair') level(`level') nested(`first')
 
 			estimates store metadta_modest
@@ -892,12 +931,54 @@ version 14.0
 			mat `coefmat' = e(b)
 			mat `coefvar' = e(V)
 			
+			qui estat ic
+			mat `matgof' = r(S)
+			local BIC =  `matgof'[1, 6]
+			
 		}
 		else {
 			mat `coefmat' = (0 , 0)
 			mat `coefvar' = e(V)
 		}
-
+		
+		//Obtain the prediction		
+		//if random, needs atleast 7 studies to run predict command
+		qui count
+		local nobs = r(N)
+		if "`model'" == "random" {
+			if ((`nobs' < 7) & ("`model'" == "random")) {
+				local multipler = int(ceil(7/`nobs'))
+				qui expand `multipler', gen(`newobs')
+			}
+		}
+		cap drop `predevent'
+		qui predict `predevent', mu
+		//Revert to original data if filler data was generated
+		 if (("`model'" == "random") & (`nobs' < 7))  {
+			qui keep if !`newobs'
+		}
+		
+		
+		//compute the weight
+		cap drop `iw'
+		if "`model'" == "random" {
+			qui gen `iw' = `total'*(`predevent'/`total')*(1 - `predevent'/`total')
+		}
+		else {
+			qui gen `iw' = `total'
+		}
+		
+		//compute the relative weight
+		qui sum `iw' if (_ESAMPLE == 1) & `se'
+		local seW = r(sum)
+		
+		qui sum `iw' if (_ESAMPLE == 1) & !`se'
+		local spW = r(sum)
+		
+		//compute the weights
+		qui replace _WT = (`iw'/`seW')*100 if (_ESAMPLE == 1) & (_WT == .) & `se'
+		qui replace _WT = (`iw'/`spW')*100 if (_ESAMPLE == 1) & (_WT == .) & !`se'
+		
 		estcovar, matrix(`coefmat') model(`modeli') bcov(`bcov') wcov(`wcov') `design'
 		local kcov = r(k) //#covariance parameters
 		mat `BVari' = r(BVar)  //Between var-cov
@@ -1037,7 +1118,7 @@ version 14.0
 					di as res "{phang} logit(sp) = `nusp'{p_end}"
 					
 					local nullse = "`nullse' `spregexpression'"
-					`echo' madamodel `event' `total' `se' `sp' `strataif',  bcov(`bcov') wcov(`wcov') modelopts(`modelopts') model(`model') ///
+					`echo' fitmodel `event' `total' `se' `sp' `strataif',  bcov(`bcov') wcov(`wcov') modelopts(`modelopts') model(`model') ///
 					regexpression(`nullse') sid(`studyid') `design' ipair(`ipair') level(`level') nested(`first')
 					
 					estimates store metadta_Nullse
@@ -1081,7 +1162,7 @@ version 14.0
 					di as res "{phang} logit(sp) = `nullnusp'{p_end}"
 					
 					local nullsp = "`seregexpression' `nullsp'" 
-					`echo' madamodel `event' `total' `se' `sp' `strataif', bcov(`bcov') wcov(`wcov') modelopts(`modelopts') model(`model') ///
+					`echo' fitmodel `event' `total' `se' `sp' `strataif', bcov(`bcov') wcov(`wcov') modelopts(`modelopts') model(`model') ///
 					regexpression(`nullsp') sid(`studyid') `design' ipair(`ipair') level(`level') nested(`first')
 					estimates store metadta_Nullsp
 					
@@ -1109,7 +1190,7 @@ version 14.0
 				if "`cveffect'" != "sp" {
 					local nullse `se'		
 					local nullse = "`nullse' `spregexpression'"
-					`echo' madamodel `event' `total' `se' `sp' `strataif',  bcov(`bcov') wcov(`wcov') modelopts(`modelopts') model(`model') regexpression(`nullse') ///
+					`echo' fitmodel `event' `total' `se' `sp' `strataif',  bcov(`bcov') wcov(`wcov') modelopts(`modelopts') model(`model') regexpression(`nullse') ///
 					sid(`studyid') `design' ipair(`ipair') level(`level') nested(`first')
 					estimates store metadta_Nullse
 					
@@ -1131,7 +1212,7 @@ version 14.0
 				if "`cveffect'" != "se" {
 					local nullsp `sp'
 					local nullsp = "`seregexpression' `nullsp'"
-					`echo' madamodel `event' `total' `se' `sp' `strataif',  bcov(`bcov') wcov(`wcov') modelopts(`modelopts') model(`model') regexpression(`nullsp') ///
+					`echo' fitmodel `event' `total' `se' `sp' `strataif',  bcov(`bcov') wcov(`wcov') modelopts(`modelopts') model(`model') regexpression(`nullsp') ///
 					sid(`studyid') `design' ipair(`ipair') level(`level') nested(`first')
 					estimates store metadta_Nullsp
 					
@@ -1246,8 +1327,10 @@ version 14.0
 			}
 				
 			//ABS
-			estp `strataif', estimates(metadta_modest) sumstat(`abslabel') depname(Effect) interaction(`interaction') cveffect(`cveffect') ///
-				catreg(`catreg') contreg(`contreg')  se(`se') level(`level') expit power(`power') dp(`dp') varx(`varx') ///
+			estp `strataif', estimates(metadta_modest) sumstat(`abslabel') ///
+				depname(Effect) interaction(`interaction') cveffect(`cveffect') ///
+				catreg(`catreg') contreg(`contreg')  se(`se') level(`level') ///
+				expit power(`power') dp(`dp') varx(`varx') ///
 				typevarx(`typevarx') by(`byvar') regexpression(`regexpression') `design' `stratify' 
 		
 			
@@ -1255,27 +1338,70 @@ version 14.0
 			mat `absoutsei' = r(outmatrixse)
 			mat `absoutspi' = r(outmatrixsp)
 			
+			
+			//Simulation
+			postsim `strataif', orderid(`rid') studyid(`studyid') todo(p) ///
+				estimates(metadta_modest) absoutse(`absoutsei') absoutsp(`absoutspi')  ///
+				level(`level')  model(`model')  by(`byvar')  se(`se') sp(`sp') ///
+				`design'  varx(`varx') bcov(`bcov') wcov(`wcov') nsims(`nsims') link(`link') regressors(`regressors')
+					
+			mat `popabsoutsei' = r(outmatrixse)
+			mat `popabsoutspi' = r(outmatrixsp)
+			mat `popabsouti' = r(outmatrix)
+			
 			//RR
 			if `pcat' > 0 | "`typevarx'" == "i" {
-				estr `strataif', estimates(metadta_modest) sumstat(`rrlabel') `comparative' cveffect(`cveffect') ///
+				estr `strataif', estimates(metadta_modest) sumstat(`rrlabel')  cveffect(`cveffect') ///
 				catreg(`catreg') se(`se') level(`level') power(`power') dp(`dp') varx(`varx') ///
 				typevarx(`typevarx') by(`byvar') `stratify' regexpression(`regexpression') `design' ///
 				baselevel(`basecode') refpos(`refpos')  comparator(`Comparator')
 			
-				mat `rrouti' = r(outmatrix)
-				mat `serrouti' = r(outmatrixse)
-				mat `sprrouti' = r(outmatrixsp)
+				mat `rrouti' = r(RRoutmatrix)
+				mat `serrouti' = r(RRoutmatrixse)
+				mat `sprrouti' = r(RRoutmatrixsp)
+				
+				mat `orouti' = r(ORoutmatrix)
+				mat `seorouti' = r(ORoutmatrixse)
+				mat `sporouti' = r(ORoutmatrixsp)
 				
 				local inltest = r(inltest)
 
 				if "`inltest'" == "yes" {
-					mat `setestnli' = r(setestnl) //Equality of RR
-					mat `sptestnli' = r(sptestnl) 
+					mat `setestnlrri' = r(setestnlRR) //Equality of RR
+					mat `sptestnlrri' = r(sptestnlRR) 
+					mat `setestnlori' = r(setestnlOR) //Equality of RR
+					mat `sptestnlori' = r(sptestnlOR) 
 				}
+				
+				//Simulation
+				postsim `strataif', orderid(`rid') studyid(`studyid') todo(r) ///
+					estimates(metadta_modest) serrout(`serrouti') sprrout(`sprrouti')  ///
+					level(`level')  model(`model')  by(`byvar') se(`se') sp(`sp') ///
+					`design'  varx(`varx') bcov(`bcov') wcov(`wcov') nsims(`nsims') link(`link') regressors(`regressors')
+						
+				mat `popserrouti' = r(rroutmatrixse)
+				mat `popsprrouti' = r(rroutmatrixsp)
+				mat `poprrouti' = r(rroutmatrix)
+				
+				mat `popseorouti' = r(oroutmatrixse)
+				mat `popsporouti' = r(oroutmatrixsp)
+				mat `poporouti' = r(oroutmatrix)
+
 			}
 			else {
 				local rr "norr"
 			}
+			
+			//Smooth estimates
+			//simulations
+			
+			if "`smooth'" != "" {
+				postsim `strataif', orderid(`rid') studyid(`studyid') todo(smooth) estimates(metadta_modest)  ///
+						level(`level')  model(`model')  by(`byvar') se(`se') sp(`sp')    ///
+						modeles(`modeles') modellci(`modellci') modeluci(`modeluci') outplot(`outplot')	///
+						`design'  varx(`varx')  bcov(`bcov') wcov(`wcov') nsims(`nsims') link(`link') regressors(`regressors')
+			}
+			
 		}
 		*if one study
 		else { 
@@ -1283,12 +1409,28 @@ version 14.0
 			mat `absoutsei' = J(1, 6, 0)
 			mat `absoutspi' = J(1, 6, 0)
 			
+			mat `popabsoutsei' = J(1, 5, .)
+			mat `popabsoutspi' = J(1, 5, .)
+			
 			mat `rrouti' = J(2, 6, 1)
 			mat `serrouti' = J(1, 6, 1)
 			mat `sprrouti' = J(1, 6, 1)
 			
-			mat `setestnli' = J(1, 3, .)
-			mat `sptestnli' = J(1, 3, .)			
+			mat `popserrouti' = J(1, 5, 1)
+			mat `popsprrouti' = J(1, 5, 1)
+			
+			mat `setestnlrri' = J(1, 3, .)
+			mat `sptestnlrri' = J(1, 3, .)	
+
+			mat `orouti' = J(2, 6, 1)
+			mat `seorouti' = J(1, 6, 1)
+			mat `sporouti' = J(1, 6, 1)
+			
+			mat `popseorouti' = J(1, 5, 1)
+			mat `popsporouti' = J(1, 5, 1)
+			
+			mat `setestnlori' = J(1, 3, .)
+			mat `sptestnlori' = J(1, 3, .)				
 			
 			mat `Vi' = J(2, 2, .) //var-cov for catreg & overall 
 			mat `logoddsi' = J(2, 6, 0)
@@ -1313,17 +1455,39 @@ version 14.0
 		
 		*Stack the matrices
 		if `i' == 1 {
+		
 			mat `absout' =	`absouti'	
 			mat `absoutse' = `absoutsei'	
 			mat `absoutsp' = `absoutspi'
+			
+			mat `popabsoutse' =  `popabsoutsei'	
+			mat `popabsoutsp' = `popabsoutspi'
+			mat `popabsout' = `popabsouti' 
+			
 			if "`rr'" == "" {
+		
 				mat `rrout' =	`rrouti'
 				mat `serrout' = `serrouti'	
 				mat `sprrout' = `sprrouti'
 				
+				mat `orout' =	`orouti'
+				mat `seorout' = `seorouti'	
+				mat `sporout' = `sporouti'
+				
+				mat `popserrout' =  `popserrouti'	
+				mat `popsprrout' =  `popsprrouti'
+				mat `poprrout' =  `poprrouti'
+				
+				mat `popseorout' = `popseorouti'	
+				mat `popsporout' = `popsporouti'
+				mat `poporout' =  `poporouti'
+				
 				if "`inltest'" == "yes" {
-					mat `setestnl' = `setestnli' //Equality of RR
-					mat `sptestnl' = `sptestnli' 
+					mat `setestnlrr' = `setestnlrri' //Equality of RR
+					mat `sptestnlrr' = `sptestnlrri' 
+					
+					mat `setestnlor' = `setestnlori' //Equality of RR
+					mat `sptestnlor' = `sptestnlori' 
 				}
 			}
 			mat `BVar' = `BVari'
@@ -1344,14 +1508,34 @@ version 14.0
 			mat `absout' = `absout' \ `absouti'
 			mat `absoutse' = `absoutse' \ `absoutsei'
 			mat `absoutsp' =  `absoutsp' \ `absoutspi'
+			
+			mat `popabsoutse' = `popabsoutse' \ `popabsoutsei'
+			mat `popabsoutsp' =  `popabsoutsp' \ `popabsoutspi'
+			mat `popabsout' =  `popabsout' \ `popabsouti' 
+			
 			if "`rr'" == "" {
 				mat `rrout' = `rrout' \ `rrouti'
 				mat `serrout' = `serrout' \ `serrouti'
 				mat `sprrout' =  `sprrout' \ `sprrouti'
 				
+				mat `orout' = `orout' \ `orouti'
+				mat `seorout' = `seorout' \ `seorouti'
+				mat `sporout' =  `sporout' \ `sporouti'
+				
+				mat `popserrout' = `popserrout' \ `popserrouti'
+				mat `popsprrout' =  `popsprrout' \ `popsprrouti'
+				mat `poprrout' =  `poprrout' \ `poprrouti' 
+				
+				mat `popseorout' = `popseorout' \ `popseorouti'
+				mat `popsporout' =  `popsporout' \ `popsporouti'
+				mat `poporout' =  `poporout' \ `poporouti' 
+				
 				if "`inltest'" == "yes" {
-					mat `setestnl' = `setestnl' \ `setestnli' //Equality of RR
-					mat `sptestnl' = `sptestnl' \ `sptestnli' 
+					mat `setestnlrr' = `setestnlrr' \ `setestnlrri' //Equality of RR
+					mat `sptestnlrr' = `sptestnlrr' \ `sptestnlrri' 
+					
+					mat `setestnlor' = `setestnlor' \ `setestnlori' //Equality of RR
+					mat `sptestnlro' = `sptestnlor' \ `sptestnlori' 
 				}
 			}
 			mat `BVar' = `BVar' \ `BVari'
@@ -1378,18 +1562,27 @@ version 14.0
 		mat `serow' = J(1, 6, .)
 		mat `sprow' = J(1, 6, .)
 		
+		mat `pserow' = J(1, 5, .)
+		mat `psprow' = J(1, 5, .)
+		
 		mat rownames `serow' = "*--Sensitivity--*"
 		mat rownames `sprow' = "*--Specificity--*" //19 characters
+		mat rownames `pserow' = "*--Sensitivity--*"
+		mat rownames `psprow' = "*--Specificity--*" //19 characters
 		
 		if "`design'" != "comparative" {
 			mat rownames `absoutse' = `byrownames'
 			mat rownames `absoutsp' = `byrownames'
+			mat rownames `popabsoutse' = `byrownames'
+			mat rownames `popabsoutsp' = `byrownames'
 			mat rownames `selogodds' = `byrownames'
 			mat rownames `splogodds' = `byrownames'
 		}
 		else {
 			mat rownames `absoutse' = `bybirownames'
 			mat rownames `absoutsp' = `bybirownames'
+			mat rownames `popabsoutse' = `bybirownames'
+			mat rownames `popabsoutsp' = `bybirownames'
 			mat rownames `selogodds' = `bybirownames'
 			mat rownames `splogodds' = `bybirownames'
 		}
@@ -1398,28 +1591,71 @@ version 14.0
 		mat `absoutsp' = `sprow' \  `absoutsp'
 		mat `absout' = `absoutse' \ `absoutsp'
 		
+		mat `popabsoutse' = `pserow' \  `popabsoutse'
+		mat `popabsoutsp' = `psprow' \  `popabsoutsp'
+		mat `popabsout' = `popabsoutse' \ `popabsoutsp'
+		
 		mat colnames `absout' = Estimate SE(logit) z(logit) P>|z| Lower Upper
 		mat colnames `absoutse' = Estimate SE(logit) z(logit) P>|z| Lower Upper
 		mat colnames `absoutsp' = Estimate SE(logit) z(logit) P>|z| Lower Upper
-
+		
+		mat colnames `popabsout' = Mean SE Median Lower Upper
+		mat colnames `popabsoutse' = Mean SE Median Lower Upper
+		mat colnames `popabsoutsp' = Mean SE Median Lower Upper
 			
 		if "`rr'" == "" {
 			mat `serrow' = J(1, 6, .)
 			mat `sprrow' = J(1, 6, .)
 			
+			mat `pserrow' = J(1, 5, .)
+			mat `psprrow' = J(1, 5, .)
+			
 			mat rownames `serrow' = "Relative Sensitivity"
 			mat rownames `sprrow' = "Relative Specificity"  //20 chars
-		
+			mat rownames `pserrow' = "Relative Sensitivity"
+			mat rownames `psprrow' = "Relative Specificity"  //20 chars
+			
 			mat rownames `serrout' = `byrownames'
 			mat rownames `sprrout' = `byrownames'
+			mat rownames `seorout' = `byrownames'
+			mat rownames `sporout' = `byrownames'
+			
+			mat rownames `popserrout' = `byrownames'
+			mat rownames `popsprrout' = `byrownames'
+			mat rownames `popseorout' = `byrownames'
+			mat rownames `popsporout' = `byrownames'
 			
 			mat `serrout' = `serrow' \  `serrout'
 			mat `sprrout' = `sprrow' \  `sprrout'
 			mat `rrout' = `serrout' \ `sprrout'
 			
+			mat `seorout' = `serrow' \  `seorout'
+			mat `sporout' = `sprrow' \  `sporout'
+			mat `orout' = `seorout' \ `sporout'
+			
+			mat `popserrout' = `serrow' \  `popserrout'
+			mat `popsprrout' = `sprrow' \  `popsprrout'
+			mat `poprrout' = `popserrout' \ `popsprrout'
+			
+			mat `popseorout' = `pserrow' \  `popseorout'
+			mat `popsporout' = `psprrow' \  `popsporout'
+			mat `poporout' = `popseorout' \ `popsporout'
+			
 			mat colnames `rrout' = Estimate SE(log) z(log) P>|z| Lower Upper
 			mat colnames `serrout' = Estimate SE(log) z(log) P>|z| Lower Upper
 			mat colnames `sprrout' = Estimate SE(log) z(log) P>|z| Lower Upper
+			
+			mat colnames `poprrout' = Mean SE Median Lower Upper
+			mat colnames `popserrout' = Mean SE Median Lower Upper
+			mat colnames `popsprrout' = Mean SE Median Lower Upper
+			
+			mat colnames `orout' = Estimate SE(log) z(log) P>|z| Lower Upper
+			mat colnames `seorout' = Estimate SE(log) z(log) P>|z| Lower Upper
+			mat colnames `sporout' = Estimate SE(log) z(log) P>|z| Lower Upper
+			
+			mat colnames `poporout' = Mean SE Median Lower Upper
+			mat colnames `popseorout' = Mean SE Median Lower Upper
+			mat colnames `popsporout' = Mean SE Median Lower Upper
 		}
 		
 		mat rownames `BVar' = `byrownames'
@@ -1430,12 +1666,13 @@ version 14.0
 	
 	if "`rr'" == "" {
 		if "`inltest'" == "yes" {
-			mat `nltest' = `setestnl' \ `sptestnl'
+			mat `nltestrr' = `setestnlrr' \ `sptestnlrr'
+			mat `nltestor' = `setestnlor' \ `sptestnlor'
 		}
 	}
 
 	//CI
-	if "`outplot'" == "rr" {
+	if "`outplot'" != "abs" {
 		if "`design'" == "comparative" {
 			drop `sp'
 			gettoken idpair confounders : regressors
@@ -1444,7 +1681,7 @@ version 14.0
 			local confounders `*'*/
 			qui count
 			local Nobs = `=r(N)'*0.25
-			*cap assert mod(`Nobs', 2) == 0 /*Check if the number of studies is half*/
+			cap assert mod(`Nobs', 2) == 0 /*Check if the number of studies is half*/
 			if _rc != 0 {
 				di as error "Some studies cannot be compared properly"
 				exit _rc, STATA
@@ -1453,17 +1690,27 @@ version 14.0
 			sort `se' `regressors' `rid'
 			egen `id' = seq(), f(1) t(`Nobs') b(1) 
 			sort `id' `se' `varx'
-			widesetup `event' `total' `confounders', idpair(`varx') se(`se') sid(`id') `design'
+			widesetup `event' `total' `confounders' , idpair(`varx') se(`se') sid(`id') `design'
 			gen `sp' = 1 - `se'
 			local vlist = r(vlist)
 			local cc0 = r(cc0)
 			local cc1 = r(cc1)
 				
-			if "`refpos'" == "bottom" {	
-				koopmanci `event'`=`indexcode'-1' `total'`=`indexcode'-1' `event'`=`basecode'-1' `total'`=`basecode'-1', rr(`es') upperci(`uci') lowerci(`lci') alpha(`=1 - `level'*0.01')
+			if "`refpos'" == "bottom" {
+				if "`outplot'" == "rr" {
+					koopmanci `event'`=`indexcode'-1' `total'`=`indexcode'-1' `event'`=`basecode'-1' `total'`=`basecode'-1', r(`es') upperci(`uci') lowerci(`lci') alpha(`=1 - `level'*0.01')
+				}
+				if "`outplot'" == "or" {
+					orccci `event'`=`indexcode'-1' `total'`=`indexcode'-1' `event'`=`basecode'-1' `total'`=`basecode'-1', r(`es') upperci(`uci') lowerci(`lci') level(`level') cimethod(`cimethod')
+				}
 			}
 			else {
-				koopmanci `event'`=`basecode'-1' `total'`=`basecode'-1' `event'`=`indexcode'-1' `total'`=`indexcode'-1', rr(`es') upperci(`uci') lowerci(`lci') alpha(`=1 - `level'*0.01')
+				if "`outplot'" == "rr" {
+					koopmanci `event'`=`basecode'-1' `total'`=`basecode'-1' `event'`=`indexcode'-1' `total'`=`indexcode'-1', r(`es') upperci(`uci') lowerci(`lci') alpha(`=1 - `level'*0.01')
+				}
+				if "`outplot'" == "or" {
+					orccci `event'`=`basecode'-1' `total'`=`basecode'-1' `event'`=`indexcode'-1' `total'`=`indexcode'-1', r(`es') upperci(`uci') lowerci(`lci') level(`level') cimethod(`cimethod')			
+				}
 			}
 			
 			//Rename the varying columns
@@ -1472,6 +1719,22 @@ version 14.0
 				label var `v'_`cc0' "`v'_`cc0'"
 				rename `v'1 `v'_`cc1'
 				label var `v'_`cc1' "`v'_`cc1'"
+			}
+			
+			//Add the weights
+			qui gen _WT = _WT_`cc0' + _WT_`cc1'
+			qui drop _WT_`cc0'  _WT_`cc1'
+			
+			//Remove unnecessary columns
+			if "`smooth'" !="" {
+				qui drop `modeles'_`cc0'
+				rename `modeles'_`cc1' `modeles'
+				
+				qui drop `modellci'_`cc0'
+				rename `modellci'_`cc1' `modellci'
+				
+				qui drop `modeluci'_`cc0'
+				rename `modeluci'_`cc1' `modeluci'
 			}
 			
 			//make new lcols, rcols
@@ -1513,17 +1776,41 @@ version 14.0
 		}
 		if "`design'" == "cbnetwork" {
 			sort `rowid' `se' `rid'
-			drop `sp' `rid'
-			qui reshape wide `event' `total' `ipair' `assignment', i(`rowid' `se') j(`idpair')	
+			drop `sp' `rid' `predevent' `iw'
 			
-			koopmanci `event'1 `total'1 `event'0 `total'0, rr(`es') upperci(`uci') lowerci(`lci') alpha(`=1 - `level'*0.01')
+			qui reshape wide `event' `total' `ipair' `assignment' _WT `modeles' `modellci' `modeluci', i(`rowid' `se') j(`idpair')	
+			
+			//Add the weights
+			qui gen _WT = _WT0 + _WT1
+			qui drop _WT0  _WT1
+			
+			//Remove unnecessary columns
+			if "`smooth'" !="" {
+				qui drop `modeles'0
+				rename `modeles'1 `modeles'
+				
+				qui drop `modellci'0
+				rename `modellci'1 `modellci'
+				
+				qui drop `modeluci'0
+				rename `modeluci'1 `modeluci'
+			}
+			
+			if "`outplot'" == "rr" {
+				koopmanci `event'1 `total'1 `event'0 `total'0, r(`es') upperci(`uci') lowerci(`lci') alpha(`=1 - `level'*0.01')
+			}
+			if "`outplot'" == "or" {
+				orccci`event'1 `total'1 `event'0 `total'0, r(`es') upperci(`uci') lowerci(`lci') level(`level') cimethod(`cimethod')
+			}
 			gen `id' = `rowid'
 		}
 		if "`design'" == "abnetwork" {
-			gen `id' = _n
-			qui gen `es' = .
-			qui gen `lci' = .
-			qui gen `uci' = .
+			qui {
+				gen `id' = _n
+				gen `es' = .
+				gen `lci' = .
+				gen `uci' = .
+			}
 		}
 	}
 	else {
@@ -1539,16 +1826,20 @@ version 14.0
 	//Prepare data for display
 	gen `use' = 1  //Individual studies
 	
-	prep4show `id' `se' `use' `neolabel' `es' `lci' `uci', ///
+	prep4show `id' `se' `use' `neolabel' `es' `lci' `uci' `modeles' `modellci' `modeluci', ///
 		sortby(`sortby') groupvar(`groupvar') grptotal(`grptotal') 	///
-		outplot(`outplot') serrout(`serrout') absoutse(`absoutse') absoutsp(`absoutsp') 	   	    ///
-		sprrout(`sprrout') `subgroup' `summaryonly' `stratify' ///
+		outplot(`outplot') popserrout(`popserrout') popseorout(`popseorout') popabsoutse(`popabsoutse') popabsoutsp(`popabsoutsp') 	   	    ///
+		popsprrout(`popsprrout') popsporout(`popsporout') `subgroup' `summaryonly' `stratify' ///
 		`overall' download(`download') indvars(`regressors') depvars(`depvars') `design'
 		
 
 	//Extra tables
 	if ("`sumtable'" != "none") {
 		di as res _n "****************************************************************************************"
+		if ("`stratify'" == "") { 
+			di  _n				
+			display `"{stata "estimates replay metadta_modest":Click to show the raw estimates}"'
+		}
 	}
 	//het
 	if "`model'" == "random" & "`htable'" == "" {			
@@ -1558,6 +1849,19 @@ version 14.0
 	if "`model'" == "random" & "`htable'" == "" {			
 		printmat, matrixout(`refe') type(refe) dp(`dp') `design' 
 	}
+	
+	//Display GOF
+	if ("`gof'" != "") {
+		di as text _n "Goodness of Fit Criterion"
+		mat `matgof' = `matgof'[1..., 5..6]
+		mat rownames `matgof' = Value
+		#delimit ;
+		noi matlist `matgof',  
+					cspec(& %7s |   %8.`=`dp''f &  %8.`=`dp''f o2&) 
+					rspec(&-&) underscore  nodotz
+		;
+		#delimit cr 
+	}
 	//logodds
 	/*
 	if  (("`sumtable'" == "all") |(strpos("`sumtable'", "logit") != 0)) {
@@ -1566,18 +1870,38 @@ version 14.0
 	*/
 	//abs
 	if  (("`sumtable'" == "all") |(strpos("`sumtable'", "abs") != 0)) {
-		printmat, matrixout(`absout') type(abs) dp(`dp') power(`power') `continuous' cveffect(`cveffect')
+		printmat, matrixout(`absout') type(abs) dp(`dp') power(`power') `continuous' cveffect(`cveffect') model(`model') 
+		
+		printmat, matrixout(`popabsout') type(popabs) dp(`dp') power(`power') `continuous' cveffect(`cveffect') nsims(`nsims') level(`level')
 	}
+	
 	//rr
 	if (("`sumtable'" == "all") |(strpos("`sumtable'", "rr") != 0)) & (`pcat' > 0 | "`typevarx'" == "i") {
 	*if (("`sumtable'" == "all" & `pcat' > 0) | (strpos("`sumtable'", "rr") != 0)) & (("`catreg'" != " ") | ("`typevarx'" == "i"))   {
 		//rr
-		printmat, matrixout(`rrout') type(rr) dp(`dp') power(`power') cveffect(`cveffect')
+		printmat, matrixout(`rrout') type(rr) dp(`dp') power(`power') cveffect(`cveffect') model(`model') 
 		
 		//rr equal
 		if "`inltest'" == "yes" {
-			printmat, matrixout(`nltest') type(rre) dp(`dp') cveffect(`cveffect')
-		}		
+			printmat, matrixout(`nltestrr') type(rre) dp(`dp') cveffect(`cveffect')
+		}
+		
+		//pop rr
+		printmat, matrixout(`poprrout') type(poprr) dp(`dp') power(`power') cveffect(`cveffect') nsims(`nsims') level(`level')
+	}
+	//or
+	if (("`sumtable'" == "all") |(strpos("`sumtable'", "or") != 0)) & (`pcat' > 0 | "`typevarx'" == "i") {
+	*if (("`sumtable'" == "all" & `pcat' > 0) | (strpos("`sumtable'", "rr") != 0)) & (("`catreg'" != " ") | ("`typevarx'" == "i"))   {
+		//or
+		printmat, matrixout(`orout') type(or) dp(`dp') power(`power') cveffect(`cveffect') model(`model') 
+		
+		//rr equal
+		if "`inltest'" == "yes" {
+			printmat, matrixout(`nltestor') type(rre) dp(`dp') cveffect(`cveffect')
+		}
+
+		//pop or
+		printmat, matrixout(`poporout') type(popor) dp(`dp') power(`power') cveffect(`cveffect') nsims(`nsims') level(`level')		
 	}	
 	//model comparison
 	if ((`p' > 0 & "`design'" != "abnetwork") | (`p' > 1 & "`design'" == "abnetwork")) & ("`mc'" =="") {
@@ -1589,23 +1913,23 @@ version 14.0
 	}
 	//Display the studies
 	if "`itable'" == "" {
-		disptab `id' `se' `use' `neolabel' `es' `lci' `uci' `grptotal', `itable' dp(`dp') power(`power') ///
+		disptab `id' `se' `use' `neolabel' `es' `lci' `uci' `grptotal' `modeles' `modellci' `modeluci', `itable' dp(`dp') power(`power') ///
 			`subgroup' `overall' sumstatse(`sumstatse') sumstatsp(`sumstatsp')  	///
 			isq2(`isq2') bghet(`bghet') bshet(`bshet') model(`model') bvar(`BVar') 	///
-			catreg(`catreg') outplot(`outplot') interaction(`interaction') ///
+			catreg(`catreg') outplot(`outplot') interaction(`interaction') `smooth' `wt' ///
 			se_lrtest(`se_lrtest') sp_lrtest(`sp_lrtest') p(`p') `mc' `design' level(`level')
 	}
 	
 	//Draw the forestplot
 	if "`fplot'" == "" {
-		fplot `es' `lci' `uci' `use' `neolabel' `grptotal' `id' `se', ///	
+		fplot `es' `lci' `uci' `use' `neolabel' `grptotal' `id' `se' `modeles' `modellci' `modeluci', ///	
 			studyid(`studyid') power(`power') dp(`dp') level(`level') ///
-			groupvar(`groupvar')  ///
+			groupvar(`groupvar') `smooth' `wt' `box' ///
 			outplot(`outplot') lcols(`lcols') `foptions' `design' 
 	}
 	
 	//Draw the SROC curve
-	if "`outplot'" == "rr" {
+	if "`outplot'" != "abs" {
 		local sroc "nosroc"
 	}
 	if "`sroc'" == "" {		
@@ -1613,7 +1937,8 @@ version 14.0
 			di as res "NOTE: SROC presented for the overall mean."
 		}
 		use "`master'", clear
-		sroc `varlist',  model(`model') selogodds(`selogodds') splogodds(`splogodds') v(`V') bvar(`BVar') ///
+		sroc `varlist',  model(`model') selogodds(`selogodds') splogodds(`splogodds')  ///
+			popabsoutsp(`popabsoutsp') popabsoutse(`popabsoutse') v(`V') bvar(`BVar') ///
 			groupvar(`groupvar') cimethod(`cimethod') level(`level') p(`p') `soptions' `stratify' `summaryonly'
 	}
 	
@@ -1621,10 +1946,8 @@ version 14.0
 		use "`master'", clear
 		tradeoff `varlist', sevar(`se') spvar(`sp') cutmat(`cutmat') coefmat(`coefmat') ///
 			groupvar(`groupvar') p(`p') `soptions' `stratify'
-	}	   
-																					 
-													
- 
+	}
+																																
 	cap ereturn clear
 	if ((`p' > 0 & "`design'" != "abnetwork") |(`p' > 1 & "`design'" == "abnetwork")) & "`mc'" == "" {
 		ereturn matrix mctestse = `semc' //model comparison se
@@ -1649,13 +1972,36 @@ version 14.0
 		ereturn matrix absoutse = `absoutse'
 		ereturn matrix absoutsp = `absoutsp'
 	}
+	cap confirm matrix `popabsout'
+	if _rc == 0 {
+		ereturn matrix popabsout = `popabsout'
+		ereturn matrix popabsoutse = `popabsoutse'
+		ereturn matrix popabsoutsp = `popabsoutsp'
+	}
 	cap confirm matrix `rrout'
 	if _rc == 0 {
 		ereturn matrix rrout = `rrout'
 		ereturn matrix serrout = `serrout'
 		ereturn matrix sprrout = `sprrout'
+	}
+	cap confirm matrix `poprrout'
+	if _rc == 0 {
+		ereturn matrix poprrout = `poprrout'
+		ereturn matrix popserrout = `popserrout'
+		ereturn matrix popsprrout = `popsprrout'
+	}
+	cap confirm matrix `orout'
+	if _rc == 0 {
+		ereturn matrix orout = `orout'
+		ereturn matrix seorout = `seorout'
+		ereturn matrix sporout = `sporout'
 	}	
-
+	cap confirm matrix `poporout'
+	if _rc == 0 {
+		ereturn matrix poporout = `poporout'
+		ereturn matrix popseorout = `popseorout'
+		ereturn matrix popsporout = `popsporout'
+	}
 	ereturn matrix refe = `refe' //Re vs FE 
 	ereturn matrix vcovar = `BVar' //var-covar between logit se and logit sp
 	if "`abnetwork'" != "" {
@@ -1755,11 +2101,11 @@ version 14.1
 		
 	}
 end
-/*+++++++++++++++++++++++++	SUPPORTING FUNCTIONS: MADAMODEL +++++++++++++++++++
+/*+++++++++++++++++++++++++	SUPPORTING FUNCTIONS: FITMODEL +++++++++++++++++++
 							Fit the logistic model
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
-cap program drop madamodel
-program define madamodel
+cap program drop fitmodel
+program define fitmodel
 version 14.0
 
 	syntax varlist [if], [ bcov(string) wcov(string) model(string) modelopts(string asis) regexpression(string) sid(varname) ///
@@ -1768,7 +2114,9 @@ version 14.0
 		
 		marksample touse, strok
 		
-		if "`abnetwork'`cbnetwork'" != "" & "`wcov'" != "" {
+		tempname varcov coefs initmat
+		
+		if "`wcov'" != "" {
 			local nested = `"|| (`nested'`ipair': `3' `4', noc cov(`wcov'))"'
 		}
 		else {
@@ -1788,76 +2136,233 @@ version 14.0
 			local re = "`3' `4'"
 			local cov = "cov(`bcov')"
 		}
-		
+		local try = 0
 	
 		if ("`model'" == "fixed") {
+			local ++try
 			capture noisily binreg `1' `regexpression' if `touse', noconstant n(`2') ml `modelopts' l(`level')
 			local success = _rc
 		}
-		if ("`model'" == "random") {		
+				
+		if ("`model'" == "random") {
+			//Specify the engine
+			if _caller() >= 16 {
+				local fitcommand "melogit"
+			}
+			else {
+				local fitcommand "meqrlogit"
+			}
+		
 			if strpos(`"`modelopts'"', "(iterate") == 0  {
-				local modelopts = `"iterate(30) `modelopts'"'
+				if "`fitcommand'" == "meqrlogit" {
+					local iterate = `"iterate(30)"'
+				}
+				else {
+					local iterate = `"iterate(100)"'
+				}
 			}
 			if strpos(`"`modelopts'"', "intpoi") == 0  {
 				qui count if `touse'
 				if `=r(N)' < 7 {
-					local modelopts = `"intpoints(`=r(N)') `modelopts'"'
+					local intopts = `"intpoints(`=r(N)')"'
 				}
 			}
 			
 			//First trial
+			local ++try
 			#delim ;
-			capture noisily meqrlogit (`1' `regexpression' if `touse', noc )|| 
+			capture noisily `fitcommand' (`1' `regexpression' if `touse', noc )|| 
 			  (`sid': `re', noc `cov') `nested',
-			  binomial(`2') `modelopts' l(`level');
+			  binomial(`2') `modelopts' `intopts' `iterate'  l(`level');
 			#delimit cr 
 			
 			local success = _rc
 			local converged = e(converged)
-			local try = 1
-			//Try to refineopts 2 times
-			if strpos(`"`modelopts'"', "refineopts") == 0 {				
-				if (`try' < 4) & ((`converged' == 0) | (`success' != 0)) {
-					local ++try 
-					local refine "refineopts(iterate(`=10 * `try''))"
-					#delim ;					
-					capture noisily meqrlogit (`1' `regexpression' if `touse', noc )|| 	
-							(`sid': `re', noc `cov') `nested',						
-							binomial(`2') `modelopts' l(`level') `refine' ;
+			
+			if (strpos(`"`modelopts'"', "from") == 0) & ((`converged' == 0) | (`success' != 0))  {
+				//First fit fixed effects model to get better starting values
+				noi di _n"*********************************** ************* ***************************************" 
+				noi di as txt _n "Just a moment - Obtaining better initial values "
+				noi di   "*********************************** ************* ***************************************" 
+				local ++try
+				capture noisily binreg `1' `regexpression' if `touse', noconstant n(`2') ml  
+				local success = _rc
+				if _rc == 0 {				
+					qui estimates table
+					mat `coefs' = r(coef)
+					local initialized = 0
+					local ninits = rowsof(`coefs')
+					forvalues e = 1(1)`ninits' {
+						local init = `coefs'[`e', 1]
+						if `init' != .b {
+							local value "`init'"
+							if `initialized' == 0 {
+								local inits = `"`value'"'
+								local initialized = 1
+							}
+							else {
+								local inits = `"`inits', `value'"'
+							}
+						}
+					}
+				}
+				
+				local b = 0
+				local w = 0	
+				if "`wcov'" != "" {
+					if strpos("`wcov'", "ind") != 0 {
+						local w = 2
+					}
+					else if strpos("`wcov'", "id") != 0 {
+						local w = 1
+					}
+				}
+				if strpos("`bcov'", "uns") != 0 {
+					local b = 3
+				}
+				else if (strpos("`bcov'", "ind") != 0) | (strpos("`bcov'", "exc") != 0) {
+					local b = 2
+				}
+				else if (strpos("`bcov'", "id") != 0) | (strpos("`bcov'", "sp") != 0) | (strpos("`bcov'", "se") != 0)   {
+					local b = 1
+				}
+				
+				mat `varcov' = J(1, `b', 0)					
+				mat `initmat' = (`inits', `varcov')
+				
+				local inits = `"from(`initmat', copy)"'
+				
+				//Laplace first without nested
+				local ++try
+				#delim ;
+				capture noisily `fitcommand' (`1' `regexpression' if `touse', noc )|| 
+				  (`sid': `re', noc `cov'),
+				  binomial(`2') `inits' `intopts' `iterate'  l(`level') matlog laplace;
+				#delimit cr 
+				
+				local success = _rc
+				local converged = e(converged)
+				if _rc == 0 {
+					//Get the new estimates
+					qui estimates table
+					mat `coefs' = r(coef)
+					local initialized = 0
+					local ninits = rowsof(`coefs')
+					forvalues e = 1(1)`ninits' {
+						local init = `coefs'[`e', 1]
+						if `init' != .b {
+							local value "`init'"
+							if `initialized' == 0 {
+								local inits = `"`value'"'
+								local initialized = 1
+							}
+							else {
+								local inits = `"`inits', `value'"'
+							}
+						}
+					}
+				}
+				
+				if `w' > 0 {
+					mat `varcov' = J(1, `w', 0)					
+					mat `initmat' = (`inits', `varcov')
+					
+					local inits = `"from(`initmat', copy)"'
+					//fit once more with nested
+					local ++try
+					#delim ;
+					capture noisily `fitcommand' (`1' `regexpression' if `touse', noc )|| 
+					  (`sid': `re', noc `cov') `nested',
+					  binomial(`2') `inits' `intopts' `iterate'  l(`level') matlog laplace;
 					#delimit cr 
 					
 					local success = _rc
+					local converged = e(converged)
 					
-					local converged = e(converged) 
+					if _rc == 0 {
+						//Get the new estimates
+						qui estimates table
+						mat `coefs' = r(coef)
+						local initialized = 0
+						local ninits = rowsof(`coefs')
+						forvalues e = 1(1)`ninits' {
+							local init = `coefs'[`e', 1]
+							if `init' != .b {
+								local value "`init'"
+								if `initialized' == 0 {
+									local inits = `"`value'"'
+									local initialized = 1
+								}
+								else {
+									local inits = `"`inits', `value'"'
+								}
+							}
+						}
+					}
+					
+				}
+				
+				mat `initmat' = (`inits')	
+				local inits = `"from(`initmat', copy)"'
+
+				//Final fit
+				local ++try
+				#delim ;
+				capture noisily `fitcommand' (`1' `regexpression' if `touse', noc )|| 
+				  (`sid': `re', noc `cov') `nested',
+				  binomial(`2') `inits' `modelopts' `intopts' `iterate'  l(`level');
+				#delimit cr 
+				
+				local success = _rc
+				local converged = e(converged)
+			}
+			*==========================================================================
+			if "`fitcommand'" == "meqrlogit" {				
+				//Try to refineopts 2 times
+				if strpos(`"`modelopts'"', "refineopts") == 0 {				
+					if (`try' < 7) & ((`converged' == 0) | (`success' != 0)) {
+						local ++try 
+						local refine "refineopts(iterate(`=10 * `try''))"
+						#delim ;					
+						capture noisily `fitcommand' (`1' `regexpression' if `touse', noc )|| 	
+								(`sid': `re', noc `cov') `nested',						
+								binomial(`2') `modelopts' l(`level') `refine' `intopts' `iterate' ;
+						#delimit cr 
+						
+						local success = _rc
+						
+						local converged = e(converged) 
+					}
 				}
 			}
-			if strpos(`"`modelopts'"', "refineopts") == 0 {				
-				if (`try' < 4) & ((`converged' == 0) | (`success' != 0)) {
-					local ++try 
-					local refine "refineopts(iterate(`=10 * `try''))"
-					#delim ;					
-					capture noisily meqrlogit (`1' `regexpression' if `touse', noc )|| 	
-							(`sid': `re', noc `cov') `nested',						
-							binomial(`2') `modelopts' l(`level') `refine' ;
-					#delimit cr 
-					
-					local success = _rc
-					
-					local converged = e(converged) 
+			*==========================================================================
+			/*if "`fitcommand'" == "meqrlogit" {
+				*Try matlog if still difficult
+				if (strpos(`"`modelopts'"', "matlog") == 0) {
+					local matlog "matlog"
 				}
 			}
-			*Try matlog if still difficult
-			if (strpos(`"`modelopts'"', "matlog") == 0) & ((`converged' == 0) | (`success' != 0)) {
+			else {
+				*Try difficult if still difficult
+				if (strpos(`"`modelopts'"', "difficult") == 0) {
+					local difficult "difficult"
+				}
+				if strpos(`"`modelopts'"', "(iterate") == 0 {
+					local iterate = `"iterate(200)"'
+				}
+			}
+			if ((`converged' == 0) | (`success' != 0)) {
 				local ++try 
 				#delim ;
-				capture noisily meqrlogit (`1' `regexpression' if `touse', noc )|| 
+				capture noisily `fitcommand' (`1' `regexpression' if `touse', noc )|| 
 					(`sid': `re', noc `cov') `nested',
-					binomial(`2') `modelopts' l(`level') `refine' matlog;
+					binomial(`2') `modelopts' l(`level') `refine' `matlog' `difficult' `intopts' `iterate' ;
 				#delimit cr
 				
 				local success = _rc				
 				local converged = e(converged)
-			}
+			}*/
+			
 		}
 		if `success' != 0 {
 			*display as error "Unexpected error performing regression"
@@ -1963,7 +2468,7 @@ program define prep4show
 version 14.0
 
 	#delimit ;
-	syntax varlist, [serrout(name) sprrout(name) absoutse(name) absoutsp(name) sortby(varlist) 
+	syntax varlist, [popserrout(name) popsprrout(name) popseorout(name) popsporout(name) popabsoutse(name) popabsoutsp(name) sortby(varlist) 
 		groupvar(varname) summaryonly nooverall nosubgroup outplot(string) grptotal(name) download(string asis) 
 		indvars(varlist) depvars(varlist) comparative abnetwork general cbnetwork stratify ] 
 	;
@@ -1978,6 +2483,9 @@ version 14.0
 	local es = "`5'"
 	local lci = "`6'"
 	local uci = "`7'"
+	local modeles = "`8'"
+	local modellci = "`9'"
+	local modeluci = "`10'"
 	qui {
 		gen `sp' = 1 - `se'
 
@@ -1996,7 +2504,8 @@ version 14.0
 			replace `id' = `id' + 1 if `use' == 1
 			replace `id' = `id' + 2 if `use' == 2  //subgroup
 			replace `id' = `id' + 3 if `use' == 0 //blank
-			replace `label' = "Summary" if `use' == 2
+			replace `label' = "Group Mean" if `use' == 2
+			replace _WT = . if `use' == 2
 			
 			qui label list `groupvar'
 			local nlevels = r(max)
@@ -2012,34 +2521,55 @@ version 14.0
 						}
 					}
 					
-					local S_112 = `absoutse'[`=`l'*`m' + `c'', 1]
-					local S_122 = `absoutsp'[`=`l'*`m' + `c'', 1]
+					local S_112 = `popabsoutse'[`=`l'*`m' + `c'', 1]
+					local S_122 = `popabsoutsp'[`=`l'*`m' + `c'', 1]
 					
-					local S_312 = `absoutse'[`=`l'*`m' + `c'', 5]
-					local S_322 = `absoutsp'[`=`l'*`m' + `c'', 5]
+					local S_312 = `popabsoutse'[`=`l'*`m' + `c'', 4]
+					local S_322 = `popabsoutsp'[`=`l'*`m' + `c'', 4]
 					
-					local S_412 = `absoutse'[`=`l'*`m' + `c'', 6]
-					local S_422 = `absoutsp'[`=`l'*`m' + `c'', 6]
+					local S_412 = `popabsoutse'[`=`l'*`m' + `c'', 5]
+					local S_422 = `popabsoutsp'[`=`l'*`m' + `c'', 5]
 				}
 				else {
 					if ("`abnetwork'" !="") | ("`stratify'" !="")  {
 						local c = 1
 					}
-					local S_112 = `serrout'[`=`l' + `c'', 1]
-					local S_122 = `sprrout'[`=`l' + `c'', 1]
-					
-					local S_312 = `serrout'[`=`l' + `c'', 5]
-					local S_322 = `sprrout'[`=`l' + `c'', 5]
-					
-					local S_412 = `serrout'[`=`l' + `c'', 6]
-					local S_422 = `sprrout'[`=`l' + `c'', 6]
+					if "`outplot'" == "or" {
+						local S_112 = `popseorout'[`=`l' + `c'', 1]
+						local S_122 = `popsporout'[`=`l' + `c'', 1]
+						
+						local S_312 = `popseorout'[`=`l' + `c'', 4]
+						local S_322 = `popsporout'[`=`l' + `c'', 4]
+						
+						local S_412 = `popseorout'[`=`l' + `c'', 5]
+						local S_422 = `popsporout'[`=`l' + `c'', 5]
+					}
+					else {
+						local S_112 = `popserrout'[`=`l' + `c'', 1]
+						local S_122 = `popsprrout'[`=`l' + `c'', 1]
+						
+						local S_312 = `popserrout'[`=`l' + `c'', 4]
+						local S_322 = `popsprrout'[`=`l' + `c'', 4]
+						
+						local S_412 = `popserrout'[`=`l' + `c'', 5]
+						local S_422 = `popsprrout'[`=`l' + `c'', 5]
+					}
 				}
 				local lab:label `groupvar' `l'
 				replace `label'  = "`lab'" if `use' == -2 & `groupvar' == `l'	
+				replace `label'  = "`groupvar' = `lab'" if `use' == -2 & `groupvar' == `l' & "`abnetwork'" == ""
 				replace `label' = "`lab'" if `use' == 2 & `groupvar' == `l'	& "`outplot'" == "rr" & "`abnetwork'" != ""
 				replace `es' = `S_112'*`se' + `S_122'*`sp' if `use' == 2 & `groupvar' == `l'	
 				replace `lci' = `S_312'*`se' + `S_322'*`sp' if `use' == 2 & `groupvar' == `l'	
 				replace `uci' = `S_412'*`se' + `S_422'*`sp' if `use' == 2 & `groupvar' == `l'	
+				
+				//Weights
+				local parameters "`se' `sp'"
+				foreach parm of local parameters {
+					sum _WT if `use' == 1 & `groupvar' == `l' & `parm'
+					local groupwt = r(sum)
+					replace _WT = `groupwt' if `use' == 2 & `groupvar' == `l' & `parm'
+				}
 			}
 		}
 		else {
@@ -2059,32 +2589,45 @@ version 14.0
 			bys `se' : replace `id' = `id' + 2 if _n==_N //blank
 			//Fill in the right info
 			if "`outplot'" == "abs" {
-				local senrows = rowsof(`absoutse')
-				local spnrows = rowsof(`absoutsp')
-				local S_11 = `absoutse'[`senrows', 1] //p (se)
-				local S_31 = `absoutse'[`senrows', 5] //ll
-				local S_41 = `absoutse'[`senrows', 6] //ul
+				local senrows = rowsof(`popabsoutse')
+				local spnrows = rowsof(`popabsoutsp')
+				local S_11 = `popabsoutse'[`senrows', 1] //se
+				local S_31 = `popabsoutse'[`senrows', 4] //ll
+				local S_41 = `popabsoutse'[`senrows', 5] //ul
 				
-				local S_12 = `absoutsp'[`spnrows', 1] //p (sp)
-				local S_32 = `absoutsp'[`spnrows', 5] //ll
-				local S_42 = `absoutsp'[`spnrows', 6] //ul
+				local S_12 = `popabsoutsp'[`spnrows', 1] //sp
+				local S_32 = `popabsoutsp'[`spnrows', 4] //ll
+				local S_42 = `popabsoutsp'[`spnrows', 5] //ul
 				}
-			else {
-				local senrows = rowsof(`serrout')
-				local spnrows = rowsof(`sprrout')
-				local S_11 = `serrout'[`senrows', 1] //p (se)
-				local S_31 = `serrout'[`senrows', 5] //ll
-				local S_41 = `serrout'[`senrows', 6] //ul
-				
-				local S_12 = `sprrout'[`spnrows', 1] //p (sp)
-				local S_32 = `sprrout'[`spnrows', 5] //ll
-				local S_42 = `sprrout'[`spnrows', 6] //ul
+			else { 
+				if "`outplot'" == "or" {
+					local senrows = rowsof(`popseorout')
+					local spnrows = rowsof(`popsporout')
+					local S_11 = `popseorout'[`senrows', 1] //p (se)
+					local S_31 = `popseorout'[`senrows', 4] //ll
+					local S_41 = `popseorout'[`senrows', 5] //ul
+					
+					local S_12 = `popsporout'[`spnrows', 1] //p (sp)
+					local S_32 = `popsporout'[`spnrows', 4] //ll
+					local S_42 = `popsporout'[`spnrows', 5] //ul
+				}
+				else {
+					local senrows = rowsof(`popserrout')
+					local spnrows = rowsof(`popsprrout')
+					local S_11 = `popserrout'[`senrows', 1] //p (se)
+					local S_31 = `popserrout'[`senrows', 4] //ll
+					local S_41 = `popserrout'[`senrows', 5] //ul
+					
+					local S_12 = `popsprrout'[`spnrows', 1] //p (sp)
+					local S_32 = `popsprrout'[`spnrows', 4] //ll
+					local S_42 = `popsprrout'[`spnrows', 5] //ul
+				}
 			}
 			
 			replace `es' = `S_11'*`se' + `S_12'*`sp' if `use' == 3	
 			replace `lci' = `S_31'*`se' + `S_32'*`sp' if `use' == 3
 			replace `uci' = `S_41'*`se' + `S_42'*`sp' if `use' == 3
-			replace `label' = "Overall" if `use' == 3
+			replace `label' = "Population Mean" if `use' == 3
 		}
 		
 		count if `use'==1 & `se'==1
@@ -2095,8 +2638,16 @@ version 14.0
 		replace `es' = . if `use' == 0 | `use' == -2
 		replace `lci' = . if `use' == 0 | `use' == -2
 		replace `uci' = . if `use' == 0 | `use' == -2
+		replace _WT = . if (`use' == 3) & ("`stratify'" != "")
+		replace _WT = 100 if (`use' == 3) & ("`stratify'" == "")
 		
 		gsort `se' `groupvar' `sortby'  `id' 
+	}
+	qui {
+		replace `modeles' = . if `use' != 1
+		replace `modellci' = . if `use' != 1
+		replace `modeluci' = . if `use' != 1
+		replace _WT = . if `use' == 0 | `use' == -2 | `use' == 4
 	}
 	
 	if "`download'" != "" {
@@ -2120,7 +2671,7 @@ version 14.0
 	}
 	qui {
 		//Drop unnecessary rows
-		if "`abnetwork'" == "" | ("`abnetwork'" != "" & "`outplot'" != "rr") {
+		if "`abnetwork'" == "" | ("`abnetwork'" != "" & "`outplot'" == "abs") {
 			drop if (`use' == 2 | `use' == 3 ) & (`grptotal' == 1) //drop summary if 1 study
 		}		
 		drop if (`use' == 1 & "`summaryonly'" != "" & `grptotal' > 1) 
@@ -2133,7 +2684,7 @@ version 14.0
 		drop if (`use' == -2 & "`summaryonly'" != "") 
 		drop if (`use' == 3 & "`overall'" != "") 
 		
-		if "`abnetwork'" != "" & "`outplot'" == "rr" {
+		if "`abnetwork'" != "" & "`outplot'" != "abs" {
 			drop if `use' == 1 | `use' == -2
 			replace `use' = 1 if `use' == 2
 		}
@@ -2198,29 +2749,60 @@ program define disptab
 version 14.0
 	#delimit ;
 	syntax varlist, [nosubgroup nooverall level(integer 95) sumstatse(string asis) 
-	sumstatsp(string asis) noitable dp(integer 2) power(integer 0) isq2(name) 
+	sumstatsp(string asis) noitable dp(integer 2) power(integer 0) isq2(name) smooth noWT
 	bghet(name) bshet(name) model(string) bvar(name) catreg(string) outplot(string) 
 	interaction(string) se_lrtest(name) sp_lrtest(name) p(integer 0) noMC general cbnetwork comparative abnetwork]
 	;
 	#delimit cr
 	
-	tempvar id se use label es lci uci df
+	tempvar id se use label es lci uci df modeles modellci modeluci
 	tokenize `varlist'
-	qui gen `id' = `1'
-	qui gen `se' = `2' 
-	qui gen `use' = `3'
-	qui gen `label' = `4'
-	qui gen `es' = `5'
-	qui gen `lci' = `6'
-	qui gen `uci' = `7'
-	qui gen `df' = 8
-	
-	if "`outplot'" == "abs" {
-		local sumstat "Absolute Measures"
+	qui {
+		gen `id' = `1'
+		gen `se' = `2' 
+		gen `use' = `3'
+		gen `label' = `4'
+		gen `es' = `5'
+		gen `lci' = `6'
+		gen `uci' = `7'
+		gen `df' = `8'
+		if "`smooth'" != "" {
+			gen `modeles' = `9'
+			gen `modellci' = `10'
+			gen `modeluci' = `11'
+		}
+		
+		if "`wt'" =="" {
+			local dispwt "% Weight"
+		}
+		
+		
+		if "`outplot'" == "abs" {
+			local sumstat "Absolute Estimates"
+		}
+		else {
+			local sumstat "Relative Estimates"
+		}
+		
+		//Find the length of the estimates
+		tempvar hold holdstr slimest
+		gen `hold' = `uci'*(10^`power')
+		tostring `hold', gen(`holdstr') format(%10.`dp'f) force
+		gen `slimest' = strlen(strltrim(`holdstr'))
+		sum `slimest'
+		local est_i_len = r(max)
+		
+		local togglesmooth = 0	
+		
+		if "`smooth'" !="" {
+			local togglesmooth = 1
+			local open " ("
+			local close ")"
+			local aesclose "%1s"
+			local aes "%`=`est_i_len''.`=`dp''f"
+		}
 	}
-	else {
-		local sumstat "Relative Measures"
-	}
+		
 	preserve
 	
 		tempvar tlabellen 
@@ -2228,32 +2810,61 @@ version 14.0
 		local studylb: variable label `label'
 		if "`studylb'" == "" {
 			local studylb "Study"
-		}		
-		qui replace `se' = `se' + 1
-		qui widesetup `label', sid(`id') idpair(`se')
-		
-		qui gen `tlabellen' = strlen(`label'0)
-		qui summ `tlabellen'
+		}
+		qui {
+			replace `se' = `se' + 1
+			widesetup `label', sid(`id') idpair(`se')
+			
+			gen `tlabellen' = strlen(`label'0)
+			summ `tlabellen'
+		}
 		local nlen = r(max) + 5 
 		local nlense = strlen("`sumstatse'")
 		local nlensp = strlen("`sumstatsp'")
+		local smoothlen = 0
+		if "`smooth'" != "" {
+			local smoothtext = " Observed (Model-based)"
+			local smoothlen = 4
+		}
+		local togglewt = 1
+		if "`wt'" != "" {
+			local togglewt = 0
+		}
 		di as res  "****************************************************************************************"
-		di as res "{pmore2} Study specific test accuracy: `sumstat'  {p_end}"
+		di as res "{pmore2} Study specific test accuracy: `smoothtext' `sumstat'  {p_end} "
 		di as res    "****************************************************************************************" 
 		
-		di _n as txt _col(`nlen') "| "   _skip(`=22 - round(`nlense'/2)') "`sumstatse'" ///
-				  _skip(`=44 - (22 - round(`nlense'/2)) - `nlense' - 1')	"| " _skip(`=22 - round(`nlensp'/2)') "`sumstatsp'" _cont
+		di _n as txt _col(`nlen') "| "   _skip(`=15 - round(`nlense'/2)') "`sumstatse'" ///
+				  _col(`=`nlen' + 1 + 34 + (`est_i_len'*2 + 4)*`togglesmooth' + 9*`togglewt'') 	///
+				  "| " _skip(`=15 - round(`nlensp'/2)') "`sumstatsp'" _cont
 				  
-		di  _n  as txt _col(2) "`studylb'" _col(`nlen') "| "   _skip(5) "Estimate" ///
-				  _skip(5) "[`level'% Conf. Interval]"  ///
-				  _skip(5)	"| " _skip(5) "Estimate" ///
-				  _skip(5) "[`level'% Conf. Interval]" 
+		di  _n  as txt _col(2) "`studylb'" _col(`nlen') "| "   "Estimate" ///
+				  _skip(`=5 - 2*`togglewt' + `est_i_len'*2*`togglesmooth'') "[`level'% Conf. Interval]"  _skip(`=3*`togglewt' + `est_i_len'*`togglesmooth'') "`dispwt'" ///
+				  "| " "Estimate" ///
+				  _skip(`=5 - 2*`togglewt'+ `est_i_len'*2*`togglesmooth'') "[`level'% Conf. Interval]" _skip(`=3*`togglewt'+ `est_i_len'*`togglesmooth'') "`dispwt'"
 				  
-		di  _dup(`=`nlen'-1') "-" "+" _dup(44) "-" "+" _dup(44) "-"
+		di  _dup(`=`nlen'-1') "-" "+" _dup(`=34 + (`est_i_len'*2 + 4)*`togglesmooth' + 9*`togglewt'') "-" "+" _dup(`=34 + (`est_i_len'*2 + 4)*`togglesmooth' + 9*`togglewt'') "-"
 		qui count
 		local N = r(N)
 		
 		forvalues i = 1(1)`N' {
+			//Weight
+			if "`wt'" =="" {
+				local ww1 = _WT1[`i']
+				local ww0 = _WT0[`i']
+			}
+			
+			//Smooth estimates
+			if "`smooth'" !="" {
+				local mes1 "`modeles'1[`i']*(10^`power')"
+				local mlci1 "`modellci'1[`i']*(10^`power')"
+				local muci1 "`modeluci'1[`i']*(10^`power')"
+				
+				local mes0 "`modeles'0[`i']*(10^`power')"
+				local mlci0 "`modellci'0[`i']*(10^`power')"
+				local muci0 "`modeluci'0[`i']*(10^`power')"
+			}
+		
 			//Group labels
 			if ((`use'[`i']== -2)){ 
 				di _col(2) as txt `label'0[`i'] _col(`nlen') "|  " _col(`=`nlen' + 45') "|  "
@@ -2261,63 +2872,41 @@ version 14.0
 			//Studies -- se
 			if ((`use'[`i'] ==1)) { 
 				di _col(2) as txt `label'1[`i'] _col(`nlen') "|  "  ///
-				_skip(5) as res  %5.`=`dp''f  `es'1[`i']*(10^`power') /// 
-				_col(`=`nlen' + 20') %5.`=`dp''f `lci'1[`i']*(10^`power') ///
-				_skip(5) %5.`=`dp''f `uci'1[`i']*(10^`power')  _cont
+				as res  %`=`est_i_len''.`=`dp''f  `es'1[`i']*(10^`power') "`open'" `aes' `mes1' "`close'"  /// 
+				_skip(8) %`=`est_i_len''.`=`dp''f `lci'1[`i']*(10^`power') "`open'" `aes' `mlci1'  `aesclose' "`close'" ///
+				_skip(`=5 - 2*`togglesmooth'') %`=`est_i_len''.`=`dp''f `uci'1[`i']*(10^`power') "`open'" `aes' `muci1'  `aesclose' "`close'"   _skip(`=3 + 9*`togglewt' + (`est_i_len' - 7)*`togglesmooth'') as res %5.`=`dp''f `ww1' _cont
 			}
 			//studies - sp
 			if (`use'[`i'] ==1 )   { 
-				di as txt _col(`=`nlen' + 45') "|  "  ///
-				_skip(5) as res  %5.`=`dp''f  `es'0[`i']*(10^`power') /// 
-				_col(`=`nlen' + 66') %5.`=`dp''f `lci'0[`i']*(10^`power') ///
-				_skip(5) %5.`=`dp''f `uci'0[`i']*(10^`power')  
+				di as txt _skip(`=4*(1-`togglesmooth')*(1-`togglewt')') "|  "  ///
+				as res  %`=`est_i_len''.`=`dp''f  `es'0[`i']*(10^`power') "`open'" `aes' `mes0' "`close'"  /// 
+				_col(`=`nlen' + 50 + (`est_i_len'*3 + 6)*`togglesmooth' + 9*`togglewt'') %`=`est_i_len''.`=`dp''f `lci'0[`i']*(10^`power') "`open'" `aes' `mlci0'  `aesclose' "`close'" ///
+				_skip(`=5 - 2*`togglesmooth'') %`=`est_i_len''.`=`dp''f `uci'0[`i']*(10^`power') "`open'" `aes' `muci0'  `aesclose' "`close'" _skip(`=3 + 9*`togglewt'+ (`est_i_len' - 7)*`togglesmooth'') as res %5.`=`dp''f `ww0' 
 			}
-			//Summaries
-			if ( (`use'[`i']== 3) | ((`use'[`i']== 2) & (`df'[`i'] > 1))){
-				if ((`use'[`i']== 2) & (`df'[`i'] > 1)) {
-					di _col(2) as txt _col(`nlen') "|  " _col(`=`nlen' + 45') "|  "
-				}		
+			//Summaries			
+			if ( (`use'[`i']== 3) | (`use'[`i']== 2)){
+				if ((`use'[`i']== 2) ) {
+					di _col(2) as txt _col(`nlen') "|  " _col(`=`nlen' + 1 + 34 + (`est_i_len'*2 + 4)*`togglesmooth' + 9*`togglewt'') "|  "
+				}
+				
+				di  _dup(`=`nlen'-1') "-" "+" _dup(`=34 + (`est_i_len'*2 + 4)*`togglesmooth' + 9*`togglewt'') "-" "+" _dup(`=34 + (`est_i_len'*2 + 4)*`togglesmooth' + 9*`togglewt'') "-"
+				di as txt _col(`nlen') "|  " _col(`=`nlen' + 1 + 34 + (`est_i_len'*2 + 4)*`togglesmooth' + 9*`togglewt'') "|  "
+				
 				di _col(2) as txt `label'0[`i'] _col(`nlen') "|  "  ///
-				_skip(5) as res  %5.`=`dp''f  `es'1[`i']*(10^`power') /// 
-				_col(`=`nlen' + 20') %5.`=`dp''f `lci'1[`i']*(10^`power') ///
-				_skip(5) %5.`=`dp''f `uci'1[`i']*(10^`power') ///
-				as txt _col(`=`nlen' + 45') "|  " ///
-				_skip(5) as res  %5.`=`dp''f  `es'0[`i']*(10^`power') /// 
-				_col(`=`nlen' + 66') %5.`=`dp''f `lci'0[`i']*(10^`power') ///
-				_skip(5) %5.`=`dp''f `uci'0[`i']*(10^`power') 
+				_skip(`=(`est_i_len' + 2)*`togglesmooth'') as res  %`=`est_i_len''.`=`dp''f  `es'1[`i']*(10^`power') /// 
+				_col(`=`nlen' + 15 + (`est_i_len'*2 + 5)*`togglesmooth'') %`=`est_i_len''.`=`dp''f `lci'1[`i']*(10^`power') ///
+				_skip(`=5 +  (`est_i_len' + 1 )*`togglesmooth'') %`=`est_i_len''.`=`dp''f `uci'1[`i']*(10^`power') _skip(`=3 + 9*`togglewt' + (`est_i_len' -7 )*`togglesmooth'') as res %5.`=`dp''f `ww1' ///
+				as txt _col(`=`nlen' + 1 + 34 + (`est_i_len'*2 + 4)*`togglesmooth' + 9*`togglewt'') "|  " ///
+				_skip(`=(`est_i_len' + 2)*`togglesmooth'') as res  %`=`est_i_len''.`=`dp''f  `es'0[`i']*(10^`power') /// 
+				_col(`=`nlen' + 50 + (`est_i_len'*4 + 8)*`togglesmooth' + 9*`togglewt'') %`=`est_i_len''.`=`dp''f `lci'0[`i']*(10^`power') ///
+				_skip(`=5 +  (`est_i_len' + 1 )*`togglesmooth'') %`=`est_i_len''.`=`dp''f `uci'0[`i']*(10^`power') _skip(`=3 + 7*`togglewt'+ `est_i_len'*`togglesmooth'') as res %5.`=`dp''f `ww0'
 			}
 			//Blanks
 			if (`use'[`i'] == 0 ){
-				di as txt _dup(`=`nlen'-1') "-" "+" _dup(44) "-" "+" _dup(44) "-"		
-				di as txt _col(`nlen') "|  " _col(`=`nlen' + 45') "|  "
+				di  _dup(`=`nlen'-1') "-" "+" _dup(`=34 + (`est_i_len'*2 + 4)*`togglesmooth' + 9*`togglewt'') "-" "+" _dup(`=34 + (`est_i_len'*2 + 4)*`togglesmooth' + 9*`togglewt'') "-"
+				*di as txt _col(`nlen') "|  "_col(`=`nlen' + 1 + 34 + (`est_i_len'*2 + 4)*`togglesmooth' + 5*`togglewt'') "|  "
 			}
 		}
-	
-	/*if (`p' > 0 ) {
-		if (`p' > 0) & ("`mc'" =="") {
-			local S_81 = `bghet'[1, 1] //chi
-			local S_91 = `bghet'[1, 2] //p
-			local S_891 = `bghet'[1, 3] //df
-			local S_82= `bghet'[2, 1] //chi
-			local S_92 = `bghet'[2, 2] //p
-			local S_892 = `bghet'[2, 3] //df
-			if (`p' > 0) {
-			
-			di as txt _n  "LR Test: Full Model vs Intercept-only Model" _n   
-			
-			di as txt  _col(30) "Chi2"  _skip(8) "degrees of" _cont
-			di as txt _n  _col(28) "statistic" 	_skip(6) "freedom"      _skip(8)"p-val"   _cont
-			
-			di as txt _n "Sensitivity " _cont
-			di as res  _col(25) %10.`=`dp''f `S_81' _col(45) `S_891' _col(52) %10.4f `S_91'   _cont
-			di as txt _n "Specificity" _cont
-			di as res  _col(25) %10.`=`dp''f `S_82' _col(45) `S_892' _col(52) %10.4f `S_92'  
-			}	
-
-			mat colnames `testmat2print' = chi2 df p
-		}			
-	}*/
-
 	restore
 end
 /*+++++++++++++++++++++++++	SUPPORTING FUNCTIONS: PRINTMAT +++++++++++++++++++++++++
@@ -2327,8 +2916,8 @@ cap program drop printmat
 program define printmat
 	version 13.1
 	syntax, type(string) [cveffect(string) matrixout(name) matrixoutse(name) ///
-			matrixoutsp(name) sumstat(string) dp(integer 2) p(integer 0) power(integer 0) ///
-			matched cbnetwork abnetwork general comparative continuous ]
+			matrixoutsp(name) sumstat(string) dp(integer 2) p(integer 0) power(integer 0) model(string) ///
+			matched cbnetwork abnetwork general comparative continuous  nsims(string) level(string)]
 		
 		local rownamesmaxlen = 10		
 		if ("`type'" != "mc") {
@@ -2343,7 +2932,7 @@ program define printmat
 			}
 		}
 			
-		if ("`type'" == "abs") {	
+		if (strpos("`type'", "abs") != 0){	
 			if `nrows' > 4 {
 				if "`cveffect'" == "sesp" {
 					local rspec "---`="&"*`=`nrows'/2 - 2''--`="&"*`=`nrows'/2 - 2''-"
@@ -2359,7 +2948,7 @@ program define printmat
 				local rspec "----"
 			}
 		}
-		if ("`type'" == "rr") {
+		if (strpos("`type'", "r") != 0){
 		local rownamesmaxlen = 20
 			if `nrows' > 4 {
 				if "`cveffect'" == "sesp" {
@@ -2396,17 +2985,29 @@ program define printmat
 			;
 			#delimit cr			
 		}
-		if ("`type'" == "logit") | ("`type'" == "abs") | ("`type'" == "rr")  {
+		if ("`type'" == "logit") | ("`type'" == "abs") | ("`type'" == "rr") | ("`type'" == "or")  {
+			if ("`model'" == "random") {
+				local typeinf "Conditional"
+			}
+			else {
+				local typeinf "Marginal"
+			}
+			
+			if "`type'" == "abs" {
+				local parm "Absolute proportion"
+			}
+			else if "`type'" == "logit" {
+				local parm "Log odds"
+			}
+			else if "`type'" == "or" {
+				local parm "Odds Ratio"
+			}
+			else if "`type'" == "rr" {
+				local parm "Proportion Ratio"
+			}
+		
 			di as res _n "****************************************************************************************"
-			if ("`type'" == "logit") { 
-				di as res "{pmore2} Marginal summary measures of test accuracy: Log odds {p_end}"
-			}
-			if ("`type'" == "abs") { 
-				di as res "{pmore2} Marginal summary measures of test accuracy: Absolute measures {p_end}"
-			}
-			if ("`type'" == "rr") {
-				di as res "{pmore2} Marginal summary measures of test accuracy: Relative measures {p_end}"
-			}
+			di as res "{pmore2} `typeinf' summary measures of test accuracy: `parm' {p_end}"
 			di as res    "****************************************************************************************" 
 			*tempname mat2print
 			*mat `mat2print' = `matrixout'
@@ -2427,6 +3028,41 @@ program define printmat
 			#delimit ;
 			noi matlist `matrixout', rowtitle(Effect) 
 						cspec(& %`rownamesmaxlen's |  %`nlensstat'.`=`dp''f &  %9.`=`dp''f &  %8.`=`dp''f &  %15.`=`dp''f &  %8.`=`dp''f &  %8.`=`dp''f o2&) 
+						rspec(`rspec') underscore  nodotz
+			;
+			#delimit cr
+		}
+		if ("`type'" == "popabs") | ("`type'" == "poprr") | ("`type'" == "popor")  {
+			if "`type'" == "popabs" {
+				local statistic "Proportion"
+			}
+			else if "`type'" == "poprr" {
+				local statistic "Proportion Ratio"
+			}
+			else if "`type'" == "popor" {
+				local statistic "Odds Ratio"
+			}
+			di as res _n "****************************************************************************************"		
+			di as res _n "Population-averaged estimates: `statistic' "
+			di as res    "****************************************************************************************" 
+			local nrows = rowsof(`matrixout')
+			forvalues r = 1(1)`nrows' {
+				mat `matrixout'[`r', 1] = `matrixout'[`r', 1]*10^`power'
+				mat `matrixout'[`r', 3] = `matrixout'[`r', 3]*10^`power'
+				mat `matrixout'[`r', 4] = `matrixout'[`r', 4]*10^`power'
+				mat `matrixout'[`r', 5] = `matrixout'[`r', 5]*10^`power'
+						
+				forvalues c = 1(1)5 {
+					local cell = `matrixout'[`r', `c'] 
+					if "`cell'" == "." {
+						mat `matrixout'[`r', `c'] == .z
+					}
+				}
+			}
+			
+			#delimit ;
+			noi matlist `matrixout', rowtitle(Parameter) 
+						cspec(& %`rownamesmaxlen's |  %`nlensstat'.`=`dp''f &  %8.`=`dp''f &  %8.`=`dp''f &  %8.`=`dp''f &  %8.`=`dp''f o2&) 
 						rspec(`rspec') underscore  nodotz
 			;
 			#delimit cr
@@ -2570,13 +3206,16 @@ program define printmat
 				di as res _col(5) %10.`=`dp''f `chisq' _col(25) `df' _col(34) %10.4f `pv' 
 			}
 		}
-		
+		if ("`type'" == "popabs") | ("`type'" == "poprr") | ("`type'" == "popor")  {
+			di as txt "NOTE: `level'% centiles obtained from `nsims' simulations of the posterior distribution"
+		}
 		if ("`continuous'" != "") {
 			di as txt "NOTE: For continuous variable margins are computed at their respective mean"
 		} 
 		if ("`type'" == "abs") {
 			di as txt "NOTE: H0: P = 0.5 vs. H1: P != 0.5"
 		}
+
 		
 end	
 
@@ -3230,13 +3869,22 @@ end
 	program define estr, rclass
 	version 13.1
 		syntax [if], estimates(string) [catreg(varlist) varx(varname) typevarx(string) sumstat(string) comparator(varname) ///
-		se(varname) comparative level(integer 95) DP(integer 2) power(integer 0) ///
+		se(varname) level(string) dp(string) power(string) ///
 		cveffect(string) general cbnetwork abnetwork stratify comparative by(varname) ///
-		regexpression(string) baselevel(integer 1) refpos(string)]
+		regexpression(string) baselevel(integer 1) refpos(string) cimethod(string)]
 		
 		marksample touse, strok
 		
-		local ZOVE -invnorm((100 - `level')/200)
+		//Approximate sampling distribution critical value
+		qui estimates restore `estimates'
+		local df = e(N) -  e(k)
+				
+		if "`cimethod'" != "wald" {
+			local critvalue invttail(`df', `=(100-`level')/200')
+		}
+		else {
+			local critvalue -invnorm((100-`level')/200)
+		}
 		
 		tokenize `regexpression'
 		if "`cbnetwork'" != "" {
@@ -3287,18 +3935,15 @@ end
 			local catreg "`*'"
 		}
 		
-		tempname lcoef lV outmatrix outmatrixse outmatrixsp serow sprow outmatrixse outmatrixsp outmatrixr overallse overallsp setestnl sptestnl serowtestnl sprowtestnl testmat2print
+		tempname serow sprow  lRRcoef lRRV RRoutmatrix RRoutmatrixse RRoutmatrixsp   ///
+				RRoutmatrixr overallseRR overallspRR setestnlRR sptestnlRR  ///
+				lORcoef lORV ORoutmatrix ORoutmatrixse ORoutmatrixsp   ///
+				ORoutmatrixr overallseOR overallspOR setestnlOR sptestnlOR  
 		
 		if "`marginlist'" != "" | ("`varx'" != "" & "`by'" != "" ){
-			qui estimates restore `estimates'
-			if "`marginlist'" != "" {
-				qui margins `marginlist' if `touse', predict(xb) over(`se') post level(`level')
-			}
-			if "`varx'" != "" & "`by'" != ""  {
-				qui margins `varx' if `touse', predict(xb) over(`se' `by') post level(`level')
-			}
+			local EstRRlnexpression  //log RR
+			local EstORlnexpression  //log OR
 			
-			local EstRlnexpression
 			foreach c of local confounders {	
 				qui label list `c'
 				local nlevels = r(max)
@@ -3315,8 +3960,11 @@ end
 							local sp_test_`c' = "_b[sp_`c'_`l'] = `sp_test_`c''"
 							local se_test_`c' = "_b[se_`c'_`l'] = `se_test_`c''"
 						}
-						local EstRlnexpression = "`EstRlnexpression' (sp_`c'_`l': ln(invlogit(_b[0.`se'#`l'.`c'#2.`varx'])) - ln(invlogit(_b[0.`se'#`l'.`c'#1.`varx'])))"	
-						local EstRlnexpression = "`EstRlnexpression' (se_`c'_`l': ln(invlogit(_b[1.`se'#`l'.`c'#2.`varx'])) - ln(invlogit(_b[1.`se'#`l'.`c'#1.`varx'])))"	
+						local EstRRlnexpression = "`EstRRlnexpression' (sp_`c'_`l': ln(invlogit(_b[0.`se'#`l'.`c'#2.`varx'])) - ln(invlogit(_b[0.`se'#`l'.`c'#1.`varx'])))"	
+						local EstRRlnexpression = "`EstRRlnexpression' (se_`c'_`l': ln(invlogit(_b[1.`se'#`l'.`c'#2.`varx'])) - ln(invlogit(_b[1.`se'#`l'.`c'#1.`varx'])))"	
+						
+						local EstORlnexpression = "`EstORlnexpression' (sp_`c'_`l': _b[0.`se'#`l'.`c'#2.`varx'] - _b[0.`se'#`l'.`c'#1.`varx'])"	
+						local EstORlnexpression = "`EstORlnexpression' (se_`c'_`l': _b[1.`se'#`l'.`c'#2.`varx'] - _b[1.`se'#`l'.`c'#1.`varx'])"	
 					}
 				}
 				else {
@@ -3349,24 +3997,39 @@ end
 							}
 						}
 						if "`refpos'" == "top" {
-							local EstRlnexpression = "`EstRlnexpression' (sp_`c'_`l': ln(invlogit(_b[0.`se'#`baselevel'.`c'])) - ln(invlogit(_b[0.`se'#`l'.`c'])))"	
-							local EstRlnexpression = "`EstRlnexpression' (se_`c'_`l': ln(invlogit(_b[1.`se'#`baselevel'.`c'])) - ln(invlogit(_b[1.`se'#`l'.`c'])))"	
+							local EstRRlnexpression = "`EstRRlnexpression' (sp_`c'_`l': ln(invlogit(_b[0.`se'#`baselevel'.`c'])) - ln(invlogit(_b[0.`se'#`l'.`c'])))"	
+							local EstRRlnexpression = "`EstRRlnexpression' (se_`c'_`l': ln(invlogit(_b[1.`se'#`baselevel'.`c'])) - ln(invlogit(_b[1.`se'#`l'.`c'])))"	
+							
+							local EstORlnexpression = "`EstORlnexpression' (sp_`c'_`l': _b[0.`se'#`baselevel'.`c'] - _b[0.`se'#`l'.`c'])"	
+							local EstORlnexpression = "`EstORlnexpression' (se_`c'_`l': _b[1.`se'#`baselevel'.`c'] - _b[1.`se'#`l'.`c'])"	
 						}
 						else {
-							local EstRlnexpression = "`EstRlnexpression' (sp_`c'_`l': ln(invlogit(_b[0.`se'#`l'.`c'])) - ln(invlogit(_b[0.`se'#`baselevel'.`c'])))"	
-							local EstRlnexpression = "`EstRlnexpression' (se_`c'_`l': ln(invlogit(_b[1.`se'#`l'.`c'])) - ln(invlogit(_b[1.`se'#`baselevel'.`c'])))"	
+							local EstRRlnexpression = "`EstRRlnexpression' (sp_`c'_`l': ln(invlogit(_b[0.`se'#`l'.`c'])) - ln(invlogit(_b[0.`se'#`baselevel'.`c'])))"	
+							local EstRRlnexpression = "`EstRRlnexpression' (se_`c'_`l': ln(invlogit(_b[1.`se'#`l'.`c'])) - ln(invlogit(_b[1.`se'#`baselevel'.`c'])))"	
+							
+							local EstORlnexpression = "`EstORlnexpression' (sp_`c'_`l': _b[0.`se'#`l'.`c'] - _b[0.`se'#`baselevel'.`c'])"	
+							local EstORlnexpression = "`EstORlnexpression' (se_`c'_`l': _b[1.`se'#`l'.`c'] - _b[1.`se'#`baselevel'.`c'])"	
 						}
 						
 					}
 				
 				}
-			}			
-			qui nlcom `EstRlnexpression', post level(`level') iterate(200)
-			mat `lcoef' = e(b)
-			mat `lV' = e(V)
-			mat `lV' = vecdiag(`lV')	
-			local ncols = colsof(`lcoef') //length of the vector
-			local rnames :colnames `lcoef'
+			}
+			//RR
+			qui estimates restore `estimates'
+			if "`marginlist'" != "" {
+				qui margins `marginlist' if `touse', predict(xb) over(`se') post level(`level')
+			}
+			if "`varx'" != "" & "`by'" != ""  {
+				qui margins `varx' if `touse', predict(xb) over(`se' `by') post level(`level')
+			}
+			
+			qui nlcom `EstRRlnexpression', post level(`level') iterate(200)
+			mat `lRRcoef' = e(b)
+			mat `lRRV' = e(V)
+			mat `lRRV' = vecdiag(`lRRV')	
+			local ncols = colsof(`lRRcoef') //length of the vector
+			local rnames :colnames `lRRcoef'
 			
 			local rowtestnl			
 			local i = 1
@@ -3384,12 +4047,12 @@ end
 					local sp_testnl_`c'_df = r(df)
 					local sp_testnl_`c'_p = r(p)
 					if `i'==1 {
-						mat `setestnl' =  [`se_testnl_`c'_chi2', `se_testnl_`c'_df', `se_testnl_`c'_p']
-						mat `sptestnl' =  [`sp_testnl_`c'_chi2', `sp_testnl_`c'_df', `sp_testnl_`c'_p']
+						mat `setestnlRR' =  [`se_testnl_`c'_chi2', `se_testnl_`c'_df', `se_testnl_`c'_p']
+						mat `sptestnlRR' =  [`sp_testnl_`c'_chi2', `sp_testnl_`c'_df', `sp_testnl_`c'_p']
 					}
 					else {
-						mat `setestnl' = `setestnl' \ [`se_testnl_`c'_chi2', `se_testnl_`c'_df', `se_testnl_`c'_p']
-						mat `sptestnl' = `sptestnl' \ [`sp_testnl_`c'_chi2', `sp_testnl_`c'_df', `sp_testnl_`c'_p']
+						mat `setestnlRR' = `setestnlRR' \ [`se_testnl_`c'_chi2', `se_testnl_`c'_df', `se_testnl_`c'_p']
+						mat `sptestnlRR' = `sptestnlRR' \ [`sp_testnl_`c'_chi2', `sp_testnl_`c'_df', `sp_testnl_`c'_p']
 					}
 					 
 					local ++i
@@ -3397,14 +4060,65 @@ end
 				}
 			}
 			
+			//OR
+			qui estimates restore `estimates'
+			if "`marginlist'" != "" {
+				qui margins `marginlist' if `touse', predict(xb) over(`se') post level(`level')
+			}
+			if "`varx'" != "" & "`by'" != ""  {
+				qui margins `varx' if `touse', predict(xb) over(`se' `by') post level(`level')
+			}
+			
+			qui nlcom `EstORlnexpression', post level(`level') iterate(200)
+			mat `lORcoef' = e(b)
+			mat `lORV' = e(V)
+			mat `lORV' = vecdiag(`lORV')	
+			local ncols = colsof(`lORcoef') //length of the vector
+			local rnames :colnames `lORcoef'
+			
+			local i = 1
+			
+			foreach c of local confounders {
+				qui label list `c'
+				local nlevels = r(max)
+				if (`nlevels' > 2 & "`comparative'" == "") | (`nlevels' > 1 & ("`comparative'" != "" | "`cbnetwork'" != "" )){
+					qui testnl (`se_test_`c''), iterate(200)
+					local se_testnl_`c'_chi2 = r(chi2)				
+					local se_testnl_`c'_df = r(df)
+					local se_testnl_`c'_p = r(p)
+					qui testnl (`sp_test_`c'')
+					local sp_testnl_`c'_chi2 = r(chi2)
+					local sp_testnl_`c'_df = r(df)
+					local sp_testnl_`c'_p = r(p)
+					if `i'==1 {
+						mat `setestnlOR' =  [`se_testnl_`c'_chi2', `se_testnl_`c'_df', `se_testnl_`c'_p']
+						mat `sptestnlOR' =  [`sp_testnl_`c'_chi2', `sp_testnl_`c'_df', `sp_testnl_`c'_p']
+					}
+					else {
+						mat `setestnlOR' = `setestnlOR' \ [`se_testnl_`c'_chi2', `se_testnl_`c'_df', `se_testnl_`c'_p']
+						mat `sptestnlOR' = `sptestnlOR' \ [`sp_testnl_`c'_chi2', `sp_testnl_`c'_df', `sp_testnl_`c'_p']
+					}
+					 
+					local ++i
+				}
+			}
+						
 			if `i' > 1 {
-				mat rownames `setestnl' = `rowtestnl'
-				mat rownames `sptestnl' = `rowtestnl'
-				mat colnames `setestnl' = chi2 df p
-				mat colnames `sptestnl' = chi2 df p
+				mat rownames `setestnlRR' = `rowtestnl'
+				mat rownames `sptestnlRR' = `rowtestnl'
+				mat colnames `setestnlRR' = chi2 df p
+				mat colnames `sptestnlRR' = chi2 df p
 				
-				mat roweq `setestnl' = Relative_Sensitivity
-				mat roweq `sptestnl' = Relative_Specificity
+				mat roweq `setestnlRR' = Relative_Sensitivity
+				mat roweq `sptestnlRR' = Relative_Specificity
+				
+				mat rownames `setestnlOR' = `rowtestnl'
+				mat rownames `sptestnlOR' = `rowtestnl'
+				mat colnames `setestnlOR' = chi2 df p
+				mat colnames `sptestnlOR' = chi2 df p
+				
+				mat roweq `setestnlOR' = OR_Sensitivity
+				mat roweq `sptestnlOR' = OR_Specificity
 								
 				*mat `testmat2print' =  `setestnl'  \ `sptestnl' 
 				*mat colnames `testmat2print' = chi2 df p
@@ -3416,26 +4130,38 @@ end
 			}
 			
 			if "`comparative'" != ""  | "`cbnetwork'" != ""  {
-				mat `outmatrix' = J(`=`ncols' + 2', 6, .)
+				mat `RRoutmatrix' = J(`=`ncols' + 2', 6, .)
+				mat `ORoutmatrix' = J(`=`ncols' + 2', 6, .)
 			}
 			else {
-				mat `outmatrix' = J(`ncols', 6, .)
+				mat `RRoutmatrix' = J(`ncols', 6, .)
+				mat `ORoutmatrix' = J(`ncols', 6, .)
 			}
 			
 			forvalues r = 1(1)`ncols' {
-				mat `outmatrix'[`r', 1] = exp(`lcoef'[1,`r']) /*Estimate*/
-				mat `outmatrix'[`r', 2] = sqrt(`lV'[1, `r']) /*se in log scale, power 1*/
-				mat `outmatrix'[`r', 3] = `lcoef'[1,`r']/sqrt(`lV'[1, `r']) /*Z in log scale*/
-				mat `outmatrix'[`r', 4] =  normprob(-abs(`outmatrix'[`r', 3]))*2  /*p-value*/
-				mat `outmatrix'[`r', 5] = exp(`lcoef'[1, `r'] - `ZOVE' * sqrt(`lV'[1, `r'])) /*lower*/
-				mat `outmatrix'[`r', 6] = exp(`lcoef'[1, `r'] + `ZOVE' * sqrt(`lV'[1, `r'])) /*upper*/
+				mat `RRoutmatrix'[`r', 1] = exp(`lRRcoef'[1,`r']) /*Estimate*/
+				mat `RRoutmatrix'[`r', 2] = sqrt(`lRRV'[1, `r']) /*se in log scale, power 1*/
+				mat `RRoutmatrix'[`r', 3] = `lRRcoef'[1,`r']/sqrt(`lRRV'[1, `r']) /*Z in log scale*/
+				mat `RRoutmatrix'[`r', 4] =  normprob(-abs(`RRoutmatrix'[`r', 3]))*2  /*p-value*/
+				mat `RRoutmatrix'[`r', 5] = exp(`lRRcoef'[1, `r'] - `critvalue' * sqrt(`lRRV'[1, `r'])) /*lower*/
+				mat `RRoutmatrix'[`r', 6] = exp(`lRRcoef'[1, `r'] + `critvalue' * sqrt(`lRRV'[1, `r'])) /*upper*/
+				
+				mat `ORoutmatrix'[`r', 1] = exp(`lORcoef'[1,`r']) /*Estimate*/
+				mat `ORoutmatrix'[`r', 2] = sqrt(`lORV'[1, `r']) /*se in log scale, power 1*/
+				mat `ORoutmatrix'[`r', 3] = `lORcoef'[1,`r']/sqrt(`lORV'[1, `r']) /*Z in log scale*/
+				mat `ORoutmatrix'[`r', 4] =  normprob(-abs(`ORoutmatrix'[`r', 3]))*2  /*p-value*/
+				mat `ORoutmatrix'[`r', 5] = exp(`lORcoef'[1, `r'] - `critvalue' * sqrt(`lORV'[1, `r'])) /*lower*/
+				mat `ORoutmatrix'[`r', 6] = exp(`lORcoef'[1, `r'] + `critvalue' * sqrt(`lORV'[1, `r'])) /*upper*/
 			}
 		}
 		else {
-			mat `outmatrix' = J(2, 6, .)
+			mat `RRoutmatrix' = J(2, 6, .)
+			mat `ORoutmatrix' = J(2, 6, .)
 			local ncols = 0
 		}
-		if "`typevarx'" == "i" {	
+		
+		if "`typevarx'" == "i" {
+			//RR
 			qui estimates restore `estimates'
 			qui margins `varx' if `touse', predict(xb) over(`se') post level(`level')
 					
@@ -3454,19 +4180,62 @@ end
 				qui nlcom (sp_Overall: ln(invlogit(_b[0.`se'#`baselevel'.`varx'])) - ln(invlogit(_b[0.`se'#`indexlevel'.`varx']))) ///
 						  (se_Overall: ln(invlogit(_b[1.`se'#`baselevel'.`varx'])) - ln(invlogit(_b[1.`se'#`indexlevel'.`varx']))), iterate(200)
 			}			
-			mat `lcoef' = r(b)
-			mat `lV' = r(V)
-			mat `lV' = vecdiag(`lV')
+			mat `lRRcoef' = r(b)
+			mat `lRRV' = r(V)
+			mat `lRRV' = vecdiag(`lRRV')
 			
 			forvalues r=1(1)2 {
-				mat `outmatrix'[`=`ncols' + `r'', 1] = exp(`lcoef'[1,`r'])  //rr
-				mat `outmatrix'[`=`ncols' + `r'', 2] = sqrt(`lV'[1, `r']) //se
-				mat `outmatrix'[`=`ncols' + `r'', 3] = `lcoef'[1, `r']/sqrt(`lV'[1, `r']) //zvalue
-				mat `outmatrix'[`=`ncols' + `r'', 4] = normprob(-abs(`lcoef'[ 1, `r']/sqrt(`lV'[1, `r'])))*2 //pvalue
-				mat `outmatrix'[`=`ncols' + `r'', 5] = exp(`lcoef'[1, `r'] - `ZOVE'*sqrt(`lV'[1, `r'])) //ll
-				mat `outmatrix'[`=`ncols' + `r'', 6] = exp(`lcoef'[1, `r'] + `ZOVE'*sqrt(`lV'[1, `r'])) //ul
+				mat `RRoutmatrix'[`=`ncols' + `r'', 1] = exp(`lRRcoef'[1,`r'])  //rr
+				mat `RRoutmatrix'[`=`ncols' + `r'', 2] = sqrt(`lRRV'[1, `r']) //se
+				mat `RRoutmatrix'[`=`ncols' + `r'', 3] = `lRRcoef'[1, `r']/sqrt(`lRRV'[1, `r']) //zvalue
+								if "`cimethod'" != "wald" {
+					mat `RRoutmatrix'[`=`ncols' + `r'', 4] = normprob(-abs(`RRoutmatrix'[`=`ncols' + `r'', 3]))*2 //pvalue
+				}
+				else {
+					mat `RRoutmatrix'[`=`ncols' + `r'', 4] = ttail(`df', abs(`RRoutmatrix'[`=`ncols' + `r'', 3]))*2  //pvalue
+				}
+				mat `RRoutmatrix'[`=`ncols' + `r'', 5] = exp(`lRRcoef'[1, `r'] - `critvalue'*sqrt(`lRRV'[1, `r'])) //ll
+				mat `RRoutmatrix'[`=`ncols' + `r'', 6] = exp(`lRRcoef'[1, `r'] + `critvalue'*sqrt(`lRRV'[1, `r'])) //ul
 			}
 			local rnames = "`rnames' sp_Overall se_Overall"
+			
+			//OR
+			qui estimates restore `estimates'
+			qui margins `varx' if `touse', predict(xb) over(`se') post level(`level')
+					
+			//log metric
+			if `baselevel' == 1 {
+				local indexlevel "2"
+			}
+			else {
+				local indexlevel "1"
+			}
+			if "`refpos'" == "bottom" {
+				qui nlcom (sp_Overall: _b[0.`se'#`indexlevel'.`varx'] - _b[0.`se'#`baselevel'.`varx']) ///
+					  (se_Overall: _b[1.`se'#`indexlevel'.`varx'] - _b[1.`se'#`baselevel'.`varx']), iterate(200)
+			}
+			else {
+				qui nlcom (sp_Overall: _b[0.`se'#`baselevel'.`varx'] - _b[0.`se'#`indexlevel'.`varx']) ///
+						  (se_Overall: _b[1.`se'#`baselevel'.`varx'] - _b[1.`se'#`indexlevel'.`varx']), iterate(200)
+			}			
+			mat `lORcoef' = r(b)
+			mat `lORV' = r(V)
+			mat `lORV' = vecdiag(`lORV')
+			
+			forvalues r=1(1)2 {
+				mat `ORoutmatrix'[`=`ncols' + `r'', 1] = exp(`lORcoef'[1,`r'])  //rr
+				mat `ORoutmatrix'[`=`ncols' + `r'', 2] = sqrt(`lORV'[1, `r']) //se
+				mat `ORoutmatrix'[`=`ncols' + `r'', 3] = `lORcoef'[1, `r']/sqrt(`lORV'[1, `r']) //zvalue
+				if "`cimethod'" != "wald" {
+					mat `ORoutmatrix'[`=`ncols' + `r'', 4] = normprob(-abs(`ORoutmatrix'[`=`ncols' + `r'', 3]))*2 //pvalue
+				}
+				else {
+					mat `ORoutmatrix'[`=`ncols' + `r'', 4] = ttail(`df', abs(`ORoutmatrix'[`=`ncols' + `r'', 3]))*2  //pvalue
+				}
+				mat `ORoutmatrix'[`=`ncols' + `r'', 5] = exp(`lORcoef'[1, `r'] - `critvalue'*sqrt(`lORV'[1, `r'])) //ll
+				mat `ORoutmatrix'[`=`ncols' + `r'', 6] = exp(`lORcoef'[1, `r'] + `critvalue'*sqrt(`lORV'[1, `r'])) //ul
+			}
+
 		}
 		
 		local sprownames = ""
@@ -3474,7 +4243,7 @@ end
 		local rspec = "-" /*draw lines or not between the rows*/
 		local rownamesmaxlen = 10 /*Default*/
 		
-		local nrows = rowsof(`outmatrix')
+		local nrows = rowsof(`RRoutmatrix')
 
 		local initse 0
 		local initsp 0
@@ -3484,7 +4253,8 @@ end
 			local parm = "`1'"
 			local left = "`3'"
 			local right = "`5'"
-			mat `outmatrixr' = `outmatrix'[`r', 1...] //select the r'th row
+			mat `RRoutmatrixr' = `RRoutmatrix'[`r', 1...] //select the r'th row
+			mat `ORoutmatrixr' = `ORoutmatrix'[`r', 1...] //select the r'th row
 			if "`5'" != "" {
 				local lab:label `left' `right'
 				local lab = ustrregexra("`lab'", " ", "_")
@@ -3492,17 +4262,21 @@ end
 				local rownamesmaxlen = max(`rownamesmaxlen', min(`nlen', 32)) //Check if there is a longer name
 				local `parm'rownames = "``parm'rownames' `left':`lab'" 
 				if `init`parm'' == 0 {
-					mat `outmatrix`parm'' = `outmatrixr'
+					mat `RRoutmatrix`parm'' = `RRoutmatrixr'
+					mat `ORoutmatrix`parm'' = `ORoutmatrixr'
 				}
 				else {
-					mat `outmatrix`parm'' = `outmatrix`parm'' \ `outmatrixr'
+					mat `RRoutmatrix`parm'' = `RRoutmatrix`parm'' \ `RRoutmatrixr'
+					mat `ORoutmatrix`parm'' = `ORoutmatrix`parm'' \ `ORoutmatrixr'
 				}
 				local init`parm' 1
 			}
 		}
 		if `ncols' > 0 {
-			mat rownames `outmatrixse' = `serownames'
-			mat rownames `outmatrixsp' = `sprownames'
+			mat rownames `RRoutmatrixse' = `serownames'
+			mat rownames `RRoutmatrixsp' = `sprownames'
+			mat rownames `ORoutmatrixse' = `serownames'
+			mat rownames `ORoutmatrixsp' = `sprownames'
 		}
 		*mat out = `outmatrix'	
 		mat `serow' = J(1, 6, .)
@@ -3513,69 +4287,104 @@ end
 		local rownamesmaxlen = max(`rownamesmaxlen', 21) //Check if there is a longer name
 		
 		if ("`comparative'" !="" | "`cbnetwork'" != "") {
-			mat `overallsp' = `outmatrix'[`=`nrows'-1', 1...]
-			mat `overallse' = `outmatrix'[`nrows', 1...]
+			mat `overallspRR' = `RRoutmatrix'[`=`nrows'-1', 1...]
+			mat `overallseRR' = `RRoutmatrix'[`nrows', 1...]
 			
-			mat rownames `overallse' = "Overall"
-			mat rownames `overallsp' = "Overall"
+			mat rownames `overallseRR' = "Overall"
+			mat rownames `overallspRR' = "Overall"
+			
+			mat `overallspOR' = `ORoutmatrix'[`=`nrows'-1', 1...]
+			mat `overallseOR' = `ORoutmatrix'[`nrows', 1...]
+			
+			mat rownames `overallseOR' = "Overall"
+			mat rownames `overallspOR' = "Overall"
 		}
 
 		if `ncols' > 0 & ("`comparative'`cbnetwork'" != ""){
 			if "`cveffect'" == "sesp" {
 				*local rspec "---`="&"*`=`nrows'/2 - 1''--`="&"*`=`nrows'/2 - 1''-"
-				mat `outmatrix' = `serow' \ `outmatrixse' \ `overallse'  \ `sprow' \ `outmatrixsp' \ `overallsp'
+				mat `RRoutmatrix' = `serow' \ `RRoutmatrixse' \ `overallseRR'  \ `sprow' \ `RRoutmatrixsp' \ `overallspRR'
+				mat `ORoutmatrix' = `serow' \ `ORoutmatrixse' \ `overallseOR'  \ `sprow' \ `ORoutmatrixsp' \ `overallspOR'
 			}
 			else if "`cveffect'" == "se" { 
-				mat `outmatrix' = `serow' \ `outmatrixse' \ `overallse'  \ `sprow' \  `overallsp'
+				mat `RRoutmatrix' = `serow' \ `RRoutmatrixse' \ `overallseRR'  \ `sprow' \  `overallspRR'
+				mat `ORoutmatrix' = `serow' \ `ORoutmatrixse' \ `overallseOR'  \ `sprow' \  `overallspOR'
 				}
 			else {
-				mat `outmatrix' = `serow' \ `overallse'  \ `sprow' \ `outmatrixsp' \ `overallsp'
+				mat `RRoutmatrix' = `serow' \ `overallseRR'  \ `sprow' \ `RRoutmatrixsp' \ `overallspRR'
+				mat `ORoutmatrix' = `serow' \ `overallseOR'  \ `sprow' \ `ORoutmatrixsp' \ `overallspOR'
 			}
 				*local rspec "--`="&"*`=`nrows'/2''-"
 			
-			mat `outmatrixse' = `outmatrixse' \ `overallse' 
-			mat `outmatrixsp' = `outmatrixsp' \ `overallsp' 
+			mat `RRoutmatrixse' = `RRoutmatrixse' \ `overallseRR' 
+			mat `RRoutmatrixsp' = `RRoutmatrixsp' \ `overallspRR' 
+			mat `ORoutmatrixse' = `ORoutmatrixse' \ `overallseOR' 
+			mat `ORoutmatrixsp' = `ORoutmatrixsp' \ `overallspOR' 
 		}
 		if `ncols' > 0 &  "`cbnetwork'`comparative'" =="" {
 			if "`cveffect'" == "sesp" {
 				*local rspec "---`="&"*`=`nrows'/2 - 1''--`="&"*`=`nrows'/2 - 1''-"
-				mat `outmatrix' = `serow' \ `outmatrixse'  \ `sprow' \ `outmatrixsp'
-				mat `outmatrixse' = `serow' \ `outmatrixse'
-				mat `outmatrixsp' = `sprow'  \ `outmatrixsp'
+				mat `RRoutmatrix' = `serow' \ `RRoutmatrixse'  \ `sprow' \ `RRoutmatrixsp'
+				mat `RRoutmatrixse' = `serow' \ `RRoutmatrixse'
+				mat `RRoutmatrixsp' = `sprow'  \ `RRoutmatrixsp'
+				
+				mat `ORoutmatrix' = `serow' \ `ORoutmatrixse'  \ `sprow' \ `ORoutmatrixsp'
+				mat `ORoutmatrixse' = `serow' \ `ORoutmatrixse'
+				mat `ORoutmatrixsp' = `sprow'  \ `ORoutmatrixsp'
 			}
 			else {
 				if "`cveffect'" == "se" { 
-					mat `outmatrix' = `serow' \ `outmatrixse'
-					mat `outmatrixse' = `serow' \ `outmatrixse'
-					mat `outmatrixsp' = J(1, 6, .)
+					mat `RRoutmatrix' = `serow' \ `RRoutmatrixse'
+					mat `RRoutmatrixse' = `serow' \ `RRoutmatrixse'
+					mat `RRoutmatrixsp' = J(1, 6, .)
+					
+					mat `ORoutmatrix' = `serow' \ `ORoutmatrixse'
+					mat `ORoutmatrixse' = `serow' \ `ORoutmatrixse'
+					mat `ORoutmatrixsp' = J(1, 6, .)
 				}
 				else {
-					mat `outmatrix' = `sprow'  \ `outmatrixsp'
-					mat `outmatrixsp' = `sprow'  \ `outmatrixsp'
-					mat `outmatrixse' = J(1, 6, .)
+					mat `RRoutmatrix' = `sprow'  \ `RRoutmatrixsp'
+					mat `RRoutmatrixsp' = `sprow'  \ `RRoutmatrixsp'
+					mat `RRoutmatrixse' = J(1, 6, .)
+					
+					mat `ORoutmatrix' = `sprow'  \ `ORoutmatrixsp'
+					mat `ORoutmatrixsp' = `sprow'  \ `ORoutmatrixsp'
+					mat `ORoutmatrixse' = J(1, 6, .)
 				}
-				*local rspec "--`="&"*`=`nrows'/2'-1'-"
 			}		
 		}
 		if `ncols' == 0 {
-			mat `outmatrixse' =  `overallse' 
-			mat `outmatrixsp' = `overallsp'
-			mat `outmatrix' = `serow' \ `outmatrixse'  \ `sprow' \ `outmatrixsp'
-			*local rspec "--&-&-"			
+			mat `RRoutmatrixse' =  `overallseRR' 
+			mat `RRoutmatrixsp' = `overallspRR'
+			mat `RRoutmatrix' = `serow' \ `RRoutmatrixse'  \ `sprow' \ `RRoutmatrixsp'
+			
+			mat `ORoutmatrixse' =  `overallseOR' 
+			mat `ORoutmatrixsp' = `overallspOR'
+			mat `ORoutmatrix' = `serow' \ `ORoutmatrixse'  \ `sprow' \ `ORoutmatrixsp'			
 		}	
 
-		mat colnames `outmatrixse' = `sumstat' SE(lor) z(lor) P>|z| Lower Upper
-		mat colnames `outmatrixsp' = `sumstat' SE(lor) z(lor) P>|z| Lower Upper
-		mat colnames `outmatrix' = `sumstat' SE(lor) z(lor) P>|z| Lower Upper
+		mat colnames `RRoutmatrixse' = `sumstat' SE(lor) z(lor) P>|z| Lower Upper
+		mat colnames `RRoutmatrixsp' = `sumstat' SE(lor) z(lor) P>|z| Lower Upper
+		mat colnames `RRoutmatrix' = `sumstat' SE(lor) z(lor) P>|z| Lower Upper
+		
+		mat colnames `ORoutmatrixse' = `sumstat' SE(lor) z(lor) P>|z| Lower Upper
+		mat colnames `ORoutmatrixsp' = `sumstat' SE(lor) z(lor) P>|z| Lower Upper
+		mat colnames `ORoutmatrix' = `sumstat' SE(lor) z(lor) P>|z| Lower Upper
 
 		if "`inltest'" == "yes" {
-			return matrix setestnl = `setestnl'
-			return matrix sptestnl = `sptestnl'
+			return matrix setestnlRR = `setestnlRR'
+			return matrix sptestnlRR = `sptestnlRR'
+			
+			return matrix setestnlOR = `setestnlOR'
+			return matrix sptestnlOR = `sptestnlOR'
 		}
 		return local inltest = "`inltest'"
-		return matrix outmatrix = `outmatrix'
-		return matrix outmatrixse = `outmatrixse'
-		return matrix outmatrixsp = `outmatrixsp'
+		return matrix RRoutmatrix = `RRoutmatrix'
+		return matrix RRoutmatrixse = `RRoutmatrixse'
+		return matrix RRoutmatrixsp = `RRoutmatrixsp'
+		return matrix ORoutmatrix = `ORoutmatrix'
+		return matrix ORoutmatrixse = `ORoutmatrixse'
+		return matrix ORoutmatrixsp = `ORoutmatrixsp'
 	end	
 /*+++++++++++++++++++++++++	SUPPORTING FUNCTIONS: ESTCOVAR +++++++++++++++++++++++++
 							Compose the var-cov matrix
@@ -3599,7 +4408,7 @@ version 14.0
 	
 	if "`model'" == "random" {
 		*WVAR
-		if "`abnetwork'" != "" {
+		if "`wcov'" != "" {
 			if strpos("`wcov'", "ind") != 0 {
 				mat	`WVar' = (exp(`matcoef'[ `nrows' - 1, 1])^2, 0\ ///
 							0, exp(`matcoef'[ `nrows', 1])^2)
@@ -3661,11 +4470,11 @@ end
 	program define koopmanci
 	version 14.0
 
-		syntax varlist, RR(name) lowerci(name) upperci(name) [alpha(real 0.05)]
+		syntax varlist, R(name) lowerci(name) upperci(name) [alpha(real 0.05)]
 		
 		qui {	
 			tokenize `varlist'
-			gen `rr' = . 
+			gen `r' = . 
 			gen `lowerci' = .
 			gen `upperci' = .
 			
@@ -3680,10 +4489,10 @@ end
 				mat ci = r(ci)
 				
 				if (`n1' == 0) &(`n2'==0) {
-					replace `rr' = 0 in `i'
+					replace `r' = 0 in `i'
 				}
 				else {
-					replace `rr' = (`n1'/`N1')/(`n2'/`N2')  in `i'	
+					replace `r' = (`n1'/`N1')/(`n2'/`N2')  in `i'	
 				}
 				replace `lowerci' = ci[1, 1] in `i'
 				replace `upperci' = ci[1, 2] in `i'
@@ -3736,6 +4545,10 @@ end
 	syntax  [,
 		/*Passed from top*/
 		COMParative 
+		cbnetwork
+		abnetwork
+		general
+		noWT
 		/*passed via foptions*/
 		AStext(integer 50) 				
 		CIOpt(passthru) 
@@ -3746,7 +4559,7 @@ end
 		noSTATS
 		ARRowopt(passthru) 		
 		OLineopt(passthru) 
-		OUTplot(string) 
+		OUTplot(string)  //or|rr
 		PLOTstat(passthru) //comma seperated
 		POINTopt(passthru) 
 		SUBLine 
@@ -3756,12 +4569,9 @@ end
 		XTick(passthru) 
 		GRID
 		GRAphsave(passthru)
-		cbnetwork
 		logscale
-		abnetwork
-		general
 		first(varname)
-		by(varname)
+		by(varname) 
 		*
 	  ];
 	#delimit cr
@@ -3781,22 +4591,22 @@ end
 	}
 	else {
 		local outplot = strlower("`outplot'")
-		local rc_ = ("`outplot'" == "rr") + ("`outplot'" == "abs")
+		local rc_ = ("`outplot'" == "or") + ("`outplot'" == "rr") + ("`outplot'" == "abs")
 		if `rc_' != 1 {
 			di as error "Options outplot(`outplot') incorrectly specified"
-			di as error "Allowed options: abs, rr"
+			di as error "Allowed options: abs, rr, or"
 			exit
 		}
-		if "`outplot'" == "rr" {
+		if "`outplot'" != "abs" {
 			cap assert "`abnetwork'`comparative'`cbnetwork'" != "" 
 			if _rc != 0 {
-				di as error "Option outplot(rr) only avaialable with abnetwork/comparative/cbnetwork analysis"
+				di as error "Option outplot(`outplot') only avaialable with abnetwork/comparative/cbnetwork analysis"
 				di as error "Specify analysis with -abnetwork/comparative/cbnetwork- option"
 				exit _rc
 			}
 		}
 		if ("`first'" != "" & "`by'" != "") & "`comparative'" != "" {
-			cap assert ("`first'" != "`by'") & ("`output'" != "rr")
+			cap assert ("`first'" != "`by'") & ("`output'" == "abs")
 			if _rc != 0 { 
 					di as error "Remove the option by(`by') or specify a different by-variable"
 					exit _rc
@@ -3819,7 +4629,7 @@ end
 	if "`texts'" != "" {
 		local texts "texts(`texts')"
 	}
-	local foptions `"`astext' `ciopt' `diamopt' `arrowopt' `double' `ovline' `stats' `olineopt' `plotstat' `pointopt' `subline' `texts' `xlabel' `xtick' `grid' `xline'  `logscale' `graphsave' `options'"'
+	local foptions `"`astext' `ciopt' `diamopt' `arrowopt' `double' `ovline' `stats' `wt' `olineopt' `plotstat' `pointopt' `subline' `texts' `xlabel' `xtick' `grid' `xline'  `logscale' `graphsave' `options'"'
 	return local outplot = "`outplot'"
 	return local lcols ="`lcols'"
 	return local foptions = `"`foptions'"'
@@ -3840,17 +4650,24 @@ end
 		POWer(integer 0)
 		DP(integer 2) 
 		Level(integer 95)
+		smooth
+		abnetwork
+		cbnetwork
+		comparative
+		general
 		/*passed from within*/	
 		Groupvar(varname)		
 		/*passed via foptions*/
-		AStext(integer 50)
+		AStext(string)
 		ARRowopt(string) 		
 		CIOpt(string) 
 		DIAMopt(string) 
 		DOUble 
  		LCols(varlist) 
 		noOVLine 
-		noSTATS 
+		noSTATS
+		noWT
+		noBox		
 		OLineopt(string) 
 		OUTplot(string) 
 		PLOTstat(string asis) /*comma seperated*/
@@ -3863,10 +4680,6 @@ end
 		GRID
 		GRAPHSave(string asis)
 		logscale
-		abnetwork
-		cbnetwork
-		comparative
-		general
 		*
 	  ];
 	#delimit cr
@@ -3876,12 +4689,12 @@ end
 			local foptions `"graphregion(color(white)) `foptions'"'
 		}
 	
-	tempvar effect lci uci use label tlabel id newid se  df  expand orig ///
+	tempvar es lci uci modeles modellci modeluci use label tlabel id newid se  df  expand orig ///
 	
 	tokenize "`varlist'", parse(" ")
 
 	qui {
-		gen `effect'=`1'*(10^`power')
+		gen `es'=`1'*(10^`power')
 		gen `lci'   =`2'*(10^`power')
 		gen `uci'   =`3'*(10^`power')
 		gen byte `use'=`4'
@@ -3890,11 +4703,21 @@ end
 		gen `id' = `7'
 		gen `se' = `8'
 		
+		if "`smooth'" !="" {
+			gen `modeles' 	= `9'*(10^`power')
+			gen `modellci' 	= `10'*(10^`power')
+			gen `modeluci' 	= `11'*(10^`power')
+		}
+		
 		if "`plotstat'"=="" {
 			local outplot = strlower("`outplot'")
 			if "`outplot'" == "rr" {
 				local plotstatse "Relative Sensitivity"
 				local plotstatsp "Relative Specificity"
+			}
+			else if "`outplot'" == "or" {
+				local plotstatse "Sensitivity OR"
+				local plotstatsp "Specificity OR"
 			}
 			else {
 				local plotstatse "Sensitivity"
@@ -3906,6 +4729,8 @@ end
 			local plotstatse "`1'"
 			local plotstatsp "`3'"
 		}
+					
+		/*
 		qui summ `id'
 		gen `expand' = 1
 		replace `expand' = 1 + 1*(`id'==r(min)) 
@@ -3914,11 +4739,36 @@ end
 		replace `id' = `id' + 1 if _n>2
 		replace `label' = "" if `id'==1
 		replace `use' = 0 if `id'==1
-		
+		*/
+		tempvar newid
+		gen  `newid' = `id'
+		//Add five spaces on top of the dataset and 1 space below
+		*gen `expand' = 1
+		gen `expand' = 1 + 5*(_n==1)  /*+ 1*(_n==_N) */
+		expand `expand'
+		sort `newid' `se' `use'
+
+		replace `newid' = _n in 1/5
+		replace `newid' = `newid' + 5 if _n>5
+		replace `label' = "" in 1/5
+		replace `use' = -2 in 1/4
+		replace `use' = 0 in 5
+		/*
+		replace `newid' = _N  if _N==_n
+		replace `use' = 0  if _N==_n
+		replace `label' = "" if _N==_n
+		*/
+		/*
+		tempvar flag
+		gen `flag' = 1
+		replace `flag' = 0 in 1/4
+		*/
+		replace `id' = `newid'
+		drop `newid'
 		sort `id' `se'
 		
 		//studylables
-		if "`abnetwork'" != "" & "`outplot'" == "rr" {
+		if "`abnetwork'" != "" & "`outplot'" != "abs" {
 			local studylb: variable label `groupvar'
 			if "`studylb'" == "" {
 				label var `label' "`groupvar'"
@@ -3943,21 +4793,76 @@ end
 			local lcols "`label' `lcols'"
 		}
 		
+		/*
 		egen `newid' = group(`id')
 		replace `id' = `newid'
 		drop `newid'
+		*/
 
-		tempvar estText estTextse estTextsp index
-		gen str `estText' = string(`effect', "%10.`=`dp''f") + " (" + string(`lci', "%10.`=`dp''f") + ", " + string(`uci', "%10.`=`dp''f") + ")"  if (`use' == 1 | `use' == 2 | `use' == 3)
-
+		tempvar estText modelestText estTextse estTextsp index wtText
+		gen str `estText' = string(`es', "%10.`=`dp''f") + " (" + string(`lci', "%10.`=`dp''f") + ", " + string(`uci', "%10.`=`dp''f") + ")"  if (`use' == 1 | `use' == 2 | `use' == 3)
+		
+		if "`smooth'" !="" {
+			gen str `modelestText' = string(`modeles', "%10.`=`dp''f") + " (" + string(`modellci', "%10.`=`dp''f") + ", " + string(`modeluci', "%10.`=`dp''f") + ")"  if (`use' == 1 )
+			replace `modelestText' = string(`es', "%10.`=`dp''f") + " (" + string(`lci', "%10.`=`dp''f") + ", " + string(`uci', "%10.`=`dp''f") + ")"  if (`use' == 2 | `use' == 3)
+			replace `estText' = " " if (`use' == 2 | `use' == 3)
+		}
+		if "`wt'" == "" {
+			gen str `wtText' = string(_WT, "%10.`=`dp''f") if (`use' == 1 | `use' == 2 | `use' == 3)
+		}
+		
+		//RCOLS
+		if "`stats'" == "" {
+			tempvar estTextse estTextsp
+			gen `estTextse' = `estText'  if `se' == 1
+			gen `estTextsp' = `estText' if `se' == 0
+			label var `estTextse' "`plotstatse' (`level'% CI)"
+			label var `estTextsp' "`plotstatsp' (`level'% CI)"
+			local rcolse "`estTextse'"
+			local rcolsp "`estTextsp'"
+		}
+		if "`smooth'" !=""  {
+			tempvar  modelestTextse modelestTextsp
+			gen `modelestTextse' = `modelestText'  if `se'== 1
+			gen `modelestTextsp' = `modelestText' if `se'== 0
+			label var `modelestTextse' "Model-based Est (`level'% centile)"
+			label var `modelestTextsp' "Model-based Est (`level'% centile)"
+			local rcolse = "`rcolse' `modelestTextse'"
+			local rcolsp = "`rcolsp' `modelestTextsp'"
+		}
+		if "`wt'" == "" {
+			tempvar wtTextse wtTextsp
+			gen `wtTextse' = `wtText' if `se'== 1
+			gen `wtTextsp' = `wtText' + " " if `se'== 0
+			label var `wtTextse' "% Weight"
+			label var `wtTextsp' "% Weight"
+			local rcolse = "`rcolse' `wtTextse'"
+			local rcolsp = "`rcolsp' `wtTextsp'"
+		}
+		
+		tempvar extra 
+		gen `extra' = " "
+		label var `extra' " "
+		
+		if "`rcolse'`rcolsp'" == "" {
+			local rcolse = "`extra'" 
+			local rcolsp = "`extra'"
+		}
+		
 		// GET MIN AND MAX DISPLAY
 		// SORT OUT TICKS- CODE PINCHED FROM MIKE AND FIRandomED. TURNS OUT I'VE BEEN USING SIMILAR NAMES...
 		// AS SUGGESTED BY JS JUST ACCEPT ANYTHING AS TICKS AND RESPONSIBILITY IS TO USER!
-	
+
 		if "`logscale'" != "" {
-			replace `effect' = ln(`effect')
-			replace `lci' = ln(`lci')
-			replace `uci' = ln(`uci')
+			replace `es' 	= ln(`es')
+			replace `lci' 		= ln(`lci')
+			replace `uci' 		= ln(`uci')
+			
+			if "`smooth'" !="" { 
+				replace `modeles'  	= ln(`modeles')
+				replace `modellci' 		= ln(`modellci')
+				replace `modeluci' 		= ln(`modeluci')
+			}
 		}
 		qui summ `lci', detail
 		local DXmin = r(min)
@@ -3965,13 +4870,21 @@ end
 		local DXmax = r(max)
 				
 		if "`xlabel'" != "" {
+			local DXmin = min(`xlabel')
+			local DXmax = max(`xlabel')
 			if "`logscale'" != "" {
-				local DXmin = ln(min(`xlabel'))
-				local DXmax = ln(max(`xlabel'))
-			}
-			else{
-				local DXmin = min(`xlabel')
-				local DXmax = max(`xlabel')
+				if "`DXmin'" == "0" {
+					local DXmin = ln(`=10^(-`dp')')
+				}
+				else {
+					local DXmin = ln(`DXmin')
+				}
+				if "`DXmax'" == "0" {
+					local DXmax = ln(`=10^(-`dp')')
+				}
+				else {
+					local DXmax = ln(`DXmax')
+				}
 			}
 		}
 		if "`xlabel'"=="" {
@@ -4030,27 +4943,19 @@ end
 
 		local DXmin1= (min(`xtick',`DXmin'))
 		local DXmax1= (max(`xtick',`DXmax'))
-		*local DXmin1= (min(`xlabel',`xtick',`DXmin'))
-		*local DXmax1= (max(`xlabel',`xtick',`DXmax'))
+		*local DXwidth = `DXmax1'-`DXmin1'
+		local plotwidth = `DXmax1' - `DXmin1'
 		
-
-		local DXwidth = `DXmax1'-`DXmin1'
 	} // END QUI
 
 	/*===============================================================================================*/
 	/*==================================== COLUMNS   ================================================*/
 	/*===============================================================================================*/
-	qui {	// KEEP QUIET UNTIL AFTER DIAMONDS
 	
-		local titleOff = 0
-		
-		if "`lcols'" == "" {
-			local lcols = "`label'"
-			local titleOff = 1
-		}
+	qui {	// KEEP QUIET UNTIL AFTER DIAMONDS
 		
 		// DOUBLE LINE OPTION
-		if "`double'" != "" & ("`lcols'" != "" | "`stats'" == ""){
+		if "`double'" != "" /*& ("`lcols'" != "" | "`stats'" == "")*/{
 			*gen `orig' = `id'
 			replace `expand' = 1
 			replace `expand' = 2 if `use' == 1
@@ -4063,19 +4968,19 @@ end
 			drop `newid'
 			
 			replace `use' = 1 if `index' == 2
-			replace `effect' = . if `index' == 2
+			replace `es' = . if `index' == 2
 			replace `lci' = . if `index' == 2
 			replace `uci' = . if `index' == 2
 			replace `estText' = "" if `index' == 2			
 			/*
 			replace `id' = `id' + 0.75 if `id' == `id'[_n-1] & `se' == `se'[_n-1] & (`use' == 1)
 			replace `use' = 1 if mod(`id',1) != 0 
-			replace `effect' = .  if mod(`id',1) != 0
+			replace `es' = .  if mod(`id',1) != 0
 			replace `lci' = . if mod(`id',1) != 0
 			replace `uci' = . if mod(`id',1) != 0
 			replace `estText' = "" if mod(`id',1) != 0
 			*/
-			foreach var of varlist `lcols' {
+			foreach var of varlist `lcols' `rcolse' `rcolsp'{
 			   cap confirm string var `var'
 			   if _rc == 0 {				
 				tempvar length words tosplit splitwhere best
@@ -4105,17 +5010,7 @@ end
 			   }
 			}
 		}
-
-		tempvar flag
-		summ `id' 
-		local max = r(max)
-		local new = r(N) + 4
-		set obs `new' 
-		gen `flag' = 0
-		replace `flag' = 1 if `id' == .
-		forvalues i = 1/4 {	// up to four lines for titles
-			local Nnew`i' = r(N)+`i' 
-		}
+	
 		local maxline = 1
 		if "`lcols'" != "" {
 			tokenize "`lcols'"
@@ -4141,251 +5036,201 @@ end
 						replace `leftLB`lcolsN'' = "" if `leftLB`lcolsN'' == "."
 					}
 				}
-				replace `leftLB`lcolsN'' = "" if (`use' != 1) | (`se' != 1)
+				replace `leftLB`lcolsN'' = "" if (`se' != 1)
+				if `lcolsN' > 1 {
+					replace `leftLB`lcolsN'' = "" if (`use' != 1)
+				}
+				
 				local colName: variable label `1'
 				if "`colName'"==""{
 					local colName = "`1'"
 				}
-
-				// WORK OUT IF TITLE IS BIGGER THAN THE VARIABLE
-				// SPREAD OVER UP TO FOUR LINES IF NECESSARY
-				local titleln = length("`colName'")
+				local titleln = strlen("`colName'")
 				tempvar tmpln
-				gen `tmpln' = length(`leftLB`lcolsN'')
+				gen `tmpln' = strlen(`leftLB`lcolsN'')
 				qui summ `tmpln' if `use' != 0
 				local otherln = r(max)
 				drop `tmpln'
-				// NOW HAVE LENGTH OF TITLE AND MAX LENGTH OF VARIABLE
-				local spread = int(`titleln'/`otherln') + 1
-				if `spread' > 4{
+				
+				local spread = max(round(`titleln'/`otherln'), 1)
+				if `spread' > 4 {
 					local spread = 4
 				}
-				local line = 1
-				local end = 0
-				local count = -1
-				local c2 = -2
-
-				local first = word("`colName'",1)
-				local last = word("`colName'",`count')
-				local nextlast = word("`colName'",`c2')
-
-				while `end' == 0 {
-					replace `leftLB`lcolsN'' = "`last'" + " " + `leftLB`lcolsN'' in `Nnew`line'' //`Nnew`line'' ONDOC
-					local check = `leftLB`lcolsN''[`Nnew`line'' ] + " `nextlast'"	// what next will be
-
-					local count = `count'-1
-					local last = word("`colName'",`count')
-					if "`last'" == ""{
-						local end = 1
+				
+				gettoken word1 remain : colName
+				local index = 1
+				foreach cword of local remain {		
+					local lencword = strlen("`cword'")
+					local lenword = strlen("`word`index''")
+					if (`=`lenword' + `lencword' + 1' > `otherln') & (`index' < `spread') & (`lenword' > `lencword') {
+						local ++index
+						local word`index' = "`cword'"
 					}
-
-					if length(`leftLB`lcolsN''[`Nnew`line'']) > `titleln'/`spread' | ///
-					  length("`check'") > `titleln'/`spread' & "`first'" == "`nextlast'" {
-						if `end' == 0{
-							local line = `line'+1
-						}
+					else {
+						local word`index' = "`word`index''" +  " " + "`cword'"
 					}
 				}
-				if `line' > `maxline'{
-					local maxline = `line'
+				
+				forvalues line=1(1)`index'{
+					replace `leftLB`lcolsN'' = "`word`line''" in `line'
+				}
+				if `spread' > `maxline'{
+					local maxline = `spread'
 				}
 				mac shift
 			}
 		}
-		if `titleOff' == 1	{ 
-			forvalues i = 1/4{
-				replace `leftLB1' = "" in `Nnew`i''  		// get rid of horrible __var name
-			}
-		}
-			
-		replace `leftLB1' = `label' if (`use' == -2 |`use' == 2 | `use' == 3)  	// put titles back in (overall, sub est etc.)
 
-		if "`stats'" == "" {		
-			gen `estTextse' = `estText'  if `se'== 1
-			gen `estTextsp' = `estText' + " " if `se'== 0
-			local rcols = "`estTextse' `estTextsp'" 
-			label var `estTextse' "`plotstatse' (`level'% CI)"
-			label var `estTextsp' "`plotstatsp' (`level'% CI)"
-		}
-		else {
-			gen `extra1' = " "
-			gen `extra2' = " "
-			label var `extra1' " "
-			label var `extra2' " "
-			local rcols = "`extra1' `extra2'" 
-		}
-
-		local rcolsN = 0
-		if "`rcols'" != "" {
-			tokenize "`rcols'"
-			local rcolsN = 0
-			while "`1'" != "" {
-				cap confirm var `1'
-				if _rc!=0  {
-					di in re "Variable `1' not defined"
-					exit _rc
-				}
-				local rcolsN = `rcolsN' + 1
-				tempvar right`rcolsN' rightLB`rcolsN' rightWD`rcolsN'
-				cap confirm string var `1'
-				if _rc == 0{
-					gen str `rightLB`rcolsN'' = `1'
-				}
-				if _rc != 0 {
-					local f: format `1'
-					gen str `rightLB`rcolsN'' = string(`1', "`f'")
-					replace `rightLB`rcolsN'' = "" if `rightLB`rcolsN'' == "."
-				}
-				local colName: variable label `1'
-				if "`colName'"==""{
-					local colName = "`1'"
-				}
-
-				// WORK OUT IF TITLE IS BIGGER THAN THE VARIABLE
-				// SPREAD OVER UP TO FOUR LINES IF NECESSARY
-				local titleln = length("`colName'")
-				tempvar tmpln
-				gen `tmpln' = length(`rightLB`rcolsN'')
-				qui summ `tmpln' if `use' != 0
-				local otherln = r(max)
-				drop `tmpln'
-				// NOW HAVE LENGTH OF TITLE AND MAX LENGTH OF VARIABLE
-				local spread = int(`titleln'/`otherln')+1
-				if `spread' > 4{
-					local spread = 4
-				}
-
-				local line = 1
-				local end = 0
-				local count = -1
-				local c2 = -2
-
-				local first = word("`colName'",1)
-				local last = word("`colName'",`count')
-				local nextlast = word("`colName'",`c2')
-
-				while `end' == 0 {
-					replace `rightLB`rcolsN'' = "`last'" + " " + `rightLB`rcolsN'' in `Nnew`line''
-					local check =  `rightLB`rcolsN''[`Nnew`line''] + " `nextlast'"	// what next will be 
-
-					local count = `count'-1
-					local last = word("`colName'",`count')
-					if "`last'" == ""{
-						local end = 1
+		local rcolseN = 0
+		local rcolspN = 0
+		local parameters "se sp"
+		foreach param of local parameters  {
+			if "`rcol`param''" != "" {
+				tokenize "`rcol`param''"
+				local rcol`param'N = 0
+				while "`1'" != "" {
+					
+					cap confirm var `1'
+					if _rc!=0  {
+						di in re "Variable `1' not defined"
+						exit _rc
 					}
-					if length(`rightLB`rcolsN''[`Nnew`line'']) > `titleln'/`spread' | ///
-					  length("`check'") > `titleln'/`spread' & "`first'" == "`nextlast'" {
-						if `end' == 0{
-							local line = `line' +1
+					local ++rcol`param'N 
+
+					cap confirm string var `1'
+					if _rc == 0{
+						tempvar `param'rightLB`rcol`param'N'
+						gen str ``param'rightLB`rcol`param'N'' = `1'
+					}
+					if _rc != 0 {
+						local f: format `1'
+						tempvar `param'rightLB`rcol`param'N'
+						gen str ``param'rightLB`rcol`param'N'' = string(`1', "f")
+						replace ``param'rightLB`rcol`param'N'' = "" if ``param'rightLB`rcol`param'N'' == "."
+					}
+					
+					local colName: variable label `1'
+					if "`colName'"==""{
+						local colName = "`1'"
+					}
+					local titleln = strlen("`colName'")
+					tempvar tmpln
+					gen `tmpln' = strlen(``param'rightLB`rcol`param'N'')
+					qui summ `tmpln' if `use' != 0
+					local otherln = r(max)
+					drop `tmpln'
+					
+					local spread = max(round(`titleln'/`otherln'), 1)
+					if `spread' > 4 {
+						local spread = 4
+					}
+										
+					gettoken word1 remain : colName
+					local index = 1
+					foreach cword of local remain {		
+						local lencword = strlen("`cword'")
+						local lenword = strlen("`word`index''")
+						if (`=`lenword' + `lencword' + 1' > `otherln') & (`index' < `spread') & (`lenword' > `lencword') {
+							local ++index
+							local word`index' = "`cword'"
+						}
+						else {
+							local word`index' = "`word`index''" +  " " + "`cword'"
 						}
 					}
+					
+					forvalues line=1(1)`index'{
+						replace ``param'rightLB`rcol`param'N'' = "`word`line''" in `line'
+					}
+					if `spread' > `maxline'{
+						local maxline = `spread'
+					}
+					mac shift
 				}
-				if `line' > `maxline' { 
-					local maxline = `line' 
-				}
-				mac shift
 			}
 		}
+		
 
 		// now get rid of extra title rows if they weren't used
+		replace `id' = `id' - 5 + `maxline' if `id' > `maxline'
 		if `maxline'==3 {
-			drop in `Nnew4' 
+			drop in 4	
 		}
 		if `maxline'==2 {
-			drop in `Nnew3'/`Nnew4' 
+			drop in 3/4 
 		}
 		if `maxline'==1 {
-			drop in `Nnew2'/`Nnew4' 
+			drop in 2/4 
 		}
 		
-		count if !`flag'
-		forvalues i = 1/`maxline' {	// up to four lines for titles
-			local multip = 1
-			local add = 0
-			local idNew`i' = `i'
-			local Nnew`i' = r(N)+`i' 
-			local tmp = `Nnew`i''
-			replace `id' = `maxline' -`idNew`i'' + 1  in `tmp'
-			replace `use' = 0 in `tmp'
-			if `i' == `maxline' {
-				local borderline = `idNew`i'' + 0.75
-			}
-		}
-		summ `id' if `flag'
-		local max = ceil(r(max))
-		replace `id' = `id' + `max' if `flag'==0
-		replace `expand' = 1
-		replace `expand' = 2 if `flag' 
-		replace `se' = 0 if `se' == .
-		count if `expand' > 1
-		local nnewlines = r(N)
-		expand `expand'
-		replace `se' = 1 in `=_N - `nnewlines' + 1'/`=_N'
-		replace `use' = -2 if `flag'
-		sort `id' `se'
+		local borderline = `maxline' + 0.35
+				
+		local leftWDtot = 0
+		local serightWDtot = 0
+		local leftWDtotNoTi = 0
 		
-		local skip = 1
-		if "`stats'" == "" {				// sort out titles for stats and weight, if there
-			local skip = 3
-		}
-		if "`stats'" != "" {
-			local skip = 2
+		forvalues i = 1/`lcolsN'{
+			tempvar leftWD`i'	
+			getlen `leftLB`i'' `leftWD`i''
+			summ `leftWD`i'' if `use' != 3 	// DON'T INCLUDE OVERALL STATS AT THIS POINT
+			local maxL = r(max)
+			local leftWDtotNoTi = `leftWDtotNoTi' + `maxL'
+			replace `leftWD`i'' = `maxL'
 		}
 
-		replace `rightLB1' = "" if (`se' == 0)
-		replace `rightLB2' = "" if (`se' == 1)
-		
-		forvalues i = 1/`lcolsN'{
-			replace `leftLB`i'' = "" if (`se' == 0)
-		}
-		
-		local leftWDtot = 0
-		local rightWDtot = 0
-		forvalues i = 1/`lcolsN'{
-			getWidth `leftLB`i'' `leftWD`i''
-			qui summ `leftWD`i''
-			local maxL = r(max)
-			local leftWDtot = `leftWDtot' + `maxL'
-			replace `leftWD`i'' = `maxL'
-			local leftWD`i' = `maxL' 
-		}
-		forvalues i = 1/`rcolsN'{
-			getWidth `rightLB`i'' `rightWD`i''
-			qui summ `rightWD`i'' 
-			replace `rightWD`i'' = r(max)
-			local rightWD`i' = r(max)
-			local rightWDtot = `rightWDtot' + r(max)
-		}
-	
+		tempvar titleLN				// CHECK IF OVERALL LENGTH BIGGER THAN REST OF LCOLS
+		getlen `leftLB1' `titleLN'	
+		summ `titleLN' if `use' == 3
+		local leftWDtot = max(`leftWDtotNoTi', r(max))
+
+		forvalues i = 1/`rcolseN'{
+			tempvar serightWD`i'
+			getlen `serightLB`i'' `serightWD`i''
+			summ `serightWD`i'' if  `use' != 3
+			replace `serightWD`i'' = r(max)
+			local serightWDtot = `serightWDtot' + r(max)
+		}	
+
 		local LEFT_WD = `leftWDtot'
-		local RIGHT_WD = `rightWDtot'
-		local ratio = `astext'		// USER SPECIFIED- % OF GRAPH TAKEN BY TEXT (ELSE NUM COLS CALC?)
-		local textWD = ((2*`DXwidth')/(1-`ratio'/100)-(2*`DXwidth')) /(`leftWDtot'+`rightWDtot')
-	
-		local AXmin = `DXmin1' - `leftWDtot'*`textWD'
-		local AXmax = `DXmax1' + `DXwidth' + `rightWDtot'*`textWD'
-	
-		local step 0
+		local RIGHT_WD = `serightWDtot'*2
+		local textWD = ((2*`plotwidth')/(1 - `astext'/100) - (2*`plotwidth')) /(`leftWDtot' + `serightWDtot'*2)
+		*local textWD = `astext'/100
+		local leftWDtot = `leftWDtot'*`textWD'
 		forvalues i = 1/`lcolsN'{
-			gen `left`i'' = `AXmin' + `step'
-			local step = `leftWD`i''*`textWD' + `step'
+			tempvar left`i'
+			gen `left`i'' = `DXmin' - `leftWDtot'
+			*local leftWDtot = `leftWDtot' - `leftWD`i''
+			local leftWDtot = `leftWDtot' - `leftWD`i''*`textWD'
+		}
+
+		tempvar seright1
+		gen `seright1' = `DXmax1'
+		forvalues i = 2/`=`rcolseN'+1'{
+			local r2 = `i' - 1
+			tempvar seright`i'
+			gen `seright`i'' = `seright`r2'' + `serightWD`r2''*`textWD'
 		}
 		
-		local DXmin2 = `DXmax1' + `rightWD1'*`textWD'
-		local DXmax2 = `DXmin2'  + `DXwidth'
+		local shift =  `seright`=`rcolseN'+1'' + (`plotwidth' - `DXmax1')*(`DXmin1' < 0) - `DXmin1'*(`DXmin1' > 0)
+	
+		forvalues i = 1/`=`rcolseN'+1'{
+			tempvar spright`i'
+			*gen `spright`i'' = `seright`i'' + `shift'
+			gen `spright`i'' = `seright`i'' + `shift' 
+		}
 		
-		gen `right1' = `DXmax1'
-		gen `right2' = `DXmax2'
+		*tempvar spright`=`rcolspN'+1'
+		*gen `spright`=`rcolspN'+1'' =  `spright`rcolspN'' + `serightWD`rcolseN''*`textWD'
+	
+		local AXmin = `left1'
+		local AXmax = `spright`=`rcolspN'+1''
 		
-		*replace `effect' = `effect' + `DXmax1' - `DXmin1'  + 0.5*`rightWDtot'*`textWD'  if !`se'
-		*replace `lci' = `lci' + `DXmax1' - `DXmin1' + 0.5*`rightWDtot'*`textWD'  if !`se'
-		*replace `uci' = `uci' + `DXmax1' - `DXmin1' + 0.5*`rightWDtot'*`textWD'  if !`se'	
+		*local DXmin2= `DXmin1' + `shift'
+		*local DXmax2= `DXmax1' + `shift'
 		
-		/* 16-09-2020
-		replace `effect' = `effect' + `DXmin2'   if !`se'
-		replace `lci' = `lci' + `DXmin2' if !`se'
-		replace `uci' = `uci' + `DXmin2' if !`se'
-		*/
+		local DXmin2= `DXmin1' + `shift' 
+		local DXmax2= `DXmax1' + `shift' 
+		
 		// DIAMONDS 
 		tempvar DIAMleftX DIAMrightX DIAMbottomX DIAMtopX DIAMleftY1 DIAMrightY1 DIAMleftY2 DIAMrightY2 DIAMbottomY DIAMtopY
 		gen `DIAMleftX'   = `lci' if `use' == 2 | `use' == 3 
@@ -4398,38 +5243,38 @@ end
 		
 		gen `DIAMbottomY' = `id' - 0.4 if (`use' == 2 | `use' == 3)
 		gen `DIAMtopY' 	  = `id' + 0.4 if (`use' == 2 | `use' == 3)
-		gen `DIAMtopX'    = `effect' if (`use' == 2 | `use' == 3)
+		gen `DIAMtopX'    = `es' if (`use' == 2 | `use' == 3)
 
 		replace `DIAMleftX' = `DXmin1' if (`lci' < `DXmin1' ) & (`use' == 2 | `use' == 3) 
-		replace `DIAMleftX' = . if (`effect' < `DXmin1' ) & (`use' == 2 | `use' == 3) 
+		replace `DIAMleftX' = . if (`es' < `DXmin1' ) & (`use' == 2 | `use' == 3) 
 		//If one study, no diamond
 		replace `DIAMleftX' = . if (`df' < 2) & (`use' == 2 | `use' == 3) 
 		
-		replace `DIAMleftY1' = `id' + 0.4*(abs((`DXmin1' -`lci')/(`effect'-`lci'))) if (`lci' < `DXmin1' ) & (`use' == 2 | `use' == 3) 
-		replace `DIAMleftY1' = . if (`effect' < `DXmin1' ) & (`use' == 2 | `use' == 3) 
+		replace `DIAMleftY1' = `id' + 0.4*(abs((`DXmin1' -`lci')/(`es'-`lci'))) if (`lci' < `DXmin1' ) & (`use' == 2 | `use' == 3) 
+		replace `DIAMleftY1' = . if (`es' < `DXmin1' ) & (`use' == 2 | `use' == 3) 
 	
-		replace `DIAMleftY2' = `id' - 0.4*( abs((`DXmin1' -`lci')/(`effect'-`lci')) ) if (`lci' < `DXmin1' ) & (`use' == 2 | `use' == 3) 
-		replace `DIAMleftY2' = . if (`effect' < `DXmin1' ) & (`use' == 2 | `use' == 3) 
+		replace `DIAMleftY2' = `id' - 0.4*( abs((`DXmin1' -`lci')/(`es'-`lci')) ) if (`lci' < `DXmin1' ) & (`use' == 2 | `use' == 3) 
+		replace `DIAMleftY2' = . if (`es' < `DXmin1' ) & (`use' == 2 | `use' == 3) 
 		
 		replace `DIAMrightX' = `DXmax`r'' if (`uci' > `DXmax1' ) & (`use' == 2 | `use' == 3) 
-		replace `DIAMrightX' = . if (`effect' > `DXmax1' ) & (`use' == 2 | `use' == 3) 
+		replace `DIAMrightX' = . if (`es' > `DXmax1' ) & (`use' == 2 | `use' == 3) 
 		//If one study, no diamond
 		replace `DIAMrightX' = . if (`df' == 1) & (`use' == 2 | `use' == 3) 
 	
-		replace `DIAMrightY1' = `id' + 0.4*( abs((`uci'-`DXmax1' )/(`uci'-`effect')) ) if (`uci' > `DXmax1' ) & (`use' == 2 | `use' == 3) 
-		replace `DIAMrightY1' = . if (`effect' > `DXmax1' ) & (`use' == 2 | `use' == 3) 
+		replace `DIAMrightY1' = `id' + 0.4*( abs((`uci'-`DXmax1' )/(`uci'-`es')) ) if (`uci' > `DXmax1' ) & (`use' == 2 | `use' == 3) 
+		replace `DIAMrightY1' = . if (`es' > `DXmax1' ) & (`use' == 2 | `use' == 3) 
 
-		replace `DIAMrightY2' = `id' - 0.4*( abs((`uci'-`DXmax1' )/(`uci'-`effect')) ) if (`uci' > `DXmax1' ) & (`use' == 2 | `use' == 3) 
-		replace `DIAMrightY2' = . if (`effect' > `DXmax1' ) & (`use' == 2 | `use' == 3) 
+		replace `DIAMrightY2' = `id' - 0.4*( abs((`uci'-`DXmax1' )/(`uci'-`es')) ) if (`uci' > `DXmax1' ) & (`use' == 2 | `use' == 3) 
+		replace `DIAMrightY2' = . if (`es' > `DXmax1' ) & (`use' == 2 | `use' == 3) 
 
-		replace `DIAMbottomY' = `id' - 0.4*( abs((`uci'-`DXmin1' )/(`uci'-`effect')) ) if (`effect' < `DXmin1' ) & (`use' == 2 | `use' == 3) 
-		replace `DIAMbottomY' = `id' - 0.4*( abs((`DXmax1' -`lci')/(`effect'-`lci')) ) if (`effect' > `DXmax1' ) & (`use' == 2 | `use' == 3) 
+		replace `DIAMbottomY' = `id' - 0.4*( abs((`uci'-`DXmin1' )/(`uci'-`es')) ) if (`es' < `DXmin1' ) & (`use' == 2 | `use' == 3) 
+		replace `DIAMbottomY' = `id' - 0.4*( abs((`DXmax1' -`lci')/(`es'-`lci')) ) if (`es' > `DXmax1' ) & (`use' == 2 | `use' == 3) 
 
-		replace `DIAMtopY' = `id' + 0.4*( abs((`uci'-`DXmin1' )/(`uci'-`effect')) ) if (`effect' < `DXmin1' ) & (`use' == 2 | `use' == 3) 
-		replace `DIAMtopY' = `id' + 0.4*( abs((`DXmax1' -`lci')/(`effect'-`lci')) ) if (`effect' > `DXmax1' ) & (`use' == 2 | `use' == 3) 
+		replace `DIAMtopY' = `id' + 0.4*( abs((`uci'-`DXmin1' )/(`uci'-`es')) ) if (`es' < `DXmin1' ) & (`use' == 2 | `use' == 3) 
+		replace `DIAMtopY' = `id' + 0.4*( abs((`DXmax1' -`lci')/(`es'-`lci')) ) if (`es' > `DXmax1' ) & (`use' == 2 | `use' == 3) 
 
-		replace `DIAMtopX' = `DXmin1'  if (`effect' < `DXmin1' ) & (`use' == 2 | `use' == 3) 
-		replace `DIAMtopX' = `DXmax1'  if (`effect' > `DXmax1' ) & (`use' == 2 | `use' == 3) 
+		replace `DIAMtopX' = `DXmin1'  if (`es' < `DXmin1' ) & (`use' == 2 | `use' == 3) 
+		replace `DIAMtopX' = `DXmax1'  if (`es' > `DXmax1' ) & (`use' == 2 | `use' == 3) 
 		replace `DIAMtopX' = . if ((`uci' < `DXmin1' ) | (`lci' > `DXmax1' )) & (`use' == 2 | `use' == 3) 
 	
 		gen `DIAMbottomX' = `DIAMtopX'
@@ -4439,9 +5284,11 @@ end
 	forvalues i = 1/`lcolsN'{
 		local lcolCommands`i' "(scatter `id' `left`i'', msymbol(none) mlabel(`leftLB`i'') mlabcolor(black) mlabpos(3) mlabsize(`texts'))"
 	}
-
-	forvalues i = 1/`rcolsN' {
-		local rcolCommands`i' "(scatter `id' `right`i'', msymbol(none) mlabel(`rightLB`i'') mlabcolor(black) mlabpos(3) mlabsize(`texts'))"
+	
+	foreach param of local parameters  {
+		forvalues i = 1/`rcol`param'N' {
+			local `param'rcolCommands`i' "(scatter `id' ``param'right`i'', msymbol(none) mlabel(``param'rightLB`i'') mlabcolor(black) mlabpos(3) mlabsize(`texts'))"
+		}
 	}
 	
 	if `"`diamopt'"' == "" {
@@ -4462,25 +5309,88 @@ end
 		}
 		local diamopt `"`diamopt'"'
 	}
+	
+	//Box options
+	if "`box'" == "" {
+		local iw = "[aw = _WT]"
+		if `"`boxopts'"' != "" & strpos(`"`boxopts'"',"msy") == 0{
+			local boxopts = `"`boxopts' msymbol(square)"' 
+		}
+		if `"`boxopts'"' != "" & strpos(`"`boxopts'"',"msi") == 0{
+			local boxopts = `"`boxopts' msize(0.5)"' 
+		}
+		if `"`boxopts'"' != "" & strpos(`"`boxopts'"',"mco") == 0{
+			local boxopts = `"`boxopts' mcolor("180 180 180")"' 
+		}
+		if `"`boxopts'"' == "" {
+			local boxopts "msymbol(square) msize(.5) mcolor("180 180 180")"
+		}
+		else{
+			local boxopts `"`boxopts'"'
+		}
+	}
+	if ("`box'" != "") {
+		local boxopts "msymbol(none)"
+		local iw
+	}
+	
 	//Point options
+	if "`smooth'" != "" {
+		local pointsymbol "msymbol(Oh)"
+		local pointcolor "mcolor("128 128 128")"
+		local pointsize "msize(small)"
+	}
+	else {
+		local pointsymbol "msymbol(O)"
+		local pointcolor "mcolor("0 0 0")"
+		local pointsize "msize(vsmall)"
+	}
+	
 	if `"`pointopt'"' != "" & strpos(`"`pointopt'"',"msy") == 0{
-		local pointopt = `"`pointopt' msymbol(O)"' 
+		local pointopt = `"`pointopt' `pointsymbol'"' 
 	}
 	if `"`pointopt'"' != "" & strpos(`"`pointopt'"',"msi") == 0{
-		local pointopt = `"`pointopt' msize(vsmall)"' 
+		local pointopt = `"`pointopt' `pointsize'"' 
 	}
 	if `"`pointopt'"' != "" & strpos(`"`pointopt'"',"mc") == 0{
-		local pointopt = `"`pointopt' mcolor(black)"' 
+		local pointopt = `"`pointopt' `pointcolor'"' 
 	}
 	if `"`pointopt'"' == ""{
-		local pointopt "msymbol(O) msize(vsmall) mcolor("0 0 0")"
+		local pointopt "`pointsymbol' `pointsize' `pointcolor'"
 	}
 	else{
 		local pointopt `"`pointopt'"'
 	}
+	
+	//Smooth Point options
+	if `"`smoothpointopts'"' != "" & strpos(`"`smoothpointopts'"',"msy") == 0 {
+		local smoothpointopts = `"`smoothpointopts' msymbol(D)"' 
+	}
+	if `"`smoothpointopts'"' != "" & strpos(`"`smoothpointopts'"',"ms") == 0 {
+		local smoothpointopts = `"`smoothpointopts' msize(vsmall)"' 
+	}
+	if `"`smoothpointopts'"' != "" & strpos(`"`smoothpointopts'"',"mc") == 0 {
+		local smoothpointopts = `"`smoothpointopts' mcolor("0 0 0")"' 
+	}
+	if `"`smoothpointopts'"' == ""{
+		local smoothpointopts "msymbol(D) msize(vsmall) mcolor("0 0 0")"
+		if "`compabs'" != "" {
+			local smoothpointopts0 "msymbol(D) msize(vsmall) mcolor("0 0 0")"
+			local smoothpointopts1 "msymbol(D) msize(vsmall) mcolor("255 127 0")"
+		}
+	}
+	else{
+		local smoothpointopts `"`smoothpointopts'"'
+	}
+	
 	// CI options
 	if `"`ciopt'"' == "" {
-		local ciopt "lcolor("0 0 0")"
+		if "`smooth'" != "" {
+			local ciopt "lwidth(1.25) lcolor(gs13)"
+		}
+		else {
+			local ciopt "lcolor("0 0 0")"
+		}
 	}
 	else {
 		if strpos(`"`ciopt'"',"hor") != 0 | strpos(`"`ciopt'"',"ver") != 0{
@@ -4498,8 +5408,41 @@ end
 		if `"`ciopt'"' != "" & strpos(`"`ciopt'"',"lc") == 0{
 			local ciopt = `"`ciopt' lcolor("0 0 0")"' 
 		}
+		if "`smooth'" != "" {
+			if strpos(`"`ciopt'"',"lc") == 0 {
+				local ciopts = `"`ciopt' lcolor(red)"' 	
+			}
+			if strpos(`"`ciopt'"',"lw") == 0 {
+				local ciopts = `"`ciopt' lwidth(2)"' 
+			}
+		}
 		local ciopt `"`ciopt'"'
 	}
+	
+	//Smooth ci
+	if `"`smoothciopts'"' == "" {
+		local smoothciopts "lcolor("0 0 0")"
+	}
+	else {
+		if strpos(`"`smoothciopts'"',"hor") != 0 | strpos(`"`smoothciopts'"',"vert") != 0{
+			di as error "Options horizontal/vertical not allowed in ciopts()"
+			exit
+		}
+		if strpos(`"`smoothciopts'"',"con") != 0{
+			di as error "Option connect() not allowed in ciopts()"
+			exit
+		}
+		if strpos(`"`smoothciopts'"',"lp") != 0 {
+			di as error "Option lpattern() not allowed in ciopts()"
+			exit
+		}
+		if strpos(`"`smoothciopts'"',"lw") == 0 {
+				local smoothciopts = `"`smoothciopts' lwidth(.5)"' 
+		}
+
+		local smoothciopts `"`smoothciopts'"'
+	}
+	
 	// Arrow options
 	if `"`arrowopt'"' == "" {
 		local arrowopt "mcolor("0 0 0") lstyle(none)"
@@ -4519,93 +5462,6 @@ end
 	}
 
 	// END GRAPH OPTS
-
-	tempvar tempOv overrallLine ovMin ovMax h0Line
-	
-	if `"`olineopt'"' == "" {
-		local olineopt "lwidth(thin) lcolor(red) lpattern(shortdash)"
-	}
-	if `"`vlineopt'"' == "" {
-		local vlineopt "lwidth(thin) lcolor(black) lpattern(solid)"
-	}
-	qui summ `id'
-	local DYmin = r(min)
-	local DYmax = r(max)+2
-	
-	forvalues r= 1(1)2 {
-		qui summ `effect' if `use' == 3 & `se' == `=2 - `r''
-		local overall`r' = r(max)
-		/*if `r'== 2 {
-			local overall2 =  `overall`r'' + `DXmin2'  
-		}
-		local overallCommand`r' `" (pci `=`DYmax'-2' `overall`r'' `borderline' `overall`r'', `olineopt') "'
-		*/
-						
-		if `overall`r'' > `DXmax1' | `overall`r'' < `DXmin1' | "`ovline'" != "" {	// ditch if not on graph
-			local overallCommand`r' ""
-		}
-		else {
-			if `r'== 2 {
-				local overall`r' =  `overall`r'' + `DXmin2' - `DXmin1'
-			}
-			local overallCommand`r' `" (pci `=`DYmax'-2' `overall`r'' `borderline' `overall`r'', `olineopt') "'
-		
-		}
-		if "`ovline'" != "" {
-			local overallCommand`r' ""
-		}
-		if "`subline'" != "" & "`groupvar'" != "" {
-			local sublineCommand`r' ""
-			
-			qui label list `groupvar'
-			local nlevels = r(max)
-			forvalues l = 1/`nlevels' {
-				qui summ `effect' if `use' == 2  & `groupvar' == `l' & (`se' == `=`r' - 1')
-				local tempSub`l' = r(mean)
-				if `r'== 1 {
-					local tempSub`l' = `tempSub`l'' + `DXmin2' - `DXmin1'
-				}
-				qui summ `id' if `use' == 1 & `groupvar' == `l'
-				local subMax`l' = r(max) + 1
-				local subMin`l' = r(min) - 2
-				qui count if `use' == 1 & `groupvar' == `l' & (`se' == `=`r' - 1')
-				if r(N) > 1 {
-					local sublineCommand`r' `" `sublineCommand`r'' (pci `subMin`l'' `tempSub`l'' `subMax`l'' `tempSub`l'', `olineopt')"'
-				}
-			}
-		}
-		else {
-			local sublineCommand`r' ""
-		}
-	}
-	if `"`xline'"' != `""' {
-			tokenize "`xline'", parse(",")
-			if "`logscale'" != "" {
-				if "`1'" == "0" {
-					local xlineval = ln(`=10^(-`dp')')
-				}
-				else {
-					local xlineval = ln(`1')
-				}
-			}
-			else {
-				local xlineval = `1'
-			}
-			if "`3'" != "" {
-				local xlineopts = "`3'"
-			}
-			else {
-				local xlineopts = "lcolor(black)"
-			}
-			local xlineval2 =  `xlineval' + `DXmin2' - `DXmin1'
-			local vlineCommand1 `" (pci `=`DYmax'-2' `xlineval' `borderline' `xlineval', `xlineopts') "'
-			local vlineCommand2 `" (pci `=`DYmax'-2' `xlineval2' `borderline' `xlineval2', `xlineopts') "'
-			
-			if (`xlineval' > `DXmax1' | `xlineval' < `DXmin1') & "`xline'" != "" {	// ditch if not on graph
-				local vlineCommand1 ""
-				local vlineCommand2 ""
-			}
-		}
 
 	qui {
 		//Generate indicator on direction of the off-scale arro
@@ -4644,8 +5500,18 @@ end
 		*replace `lci' = . if (round(`lci', 0.001) > round(`DXmax1' , 0.001)) & (`lci' !=. ) & (`use' == 1) 
 		*replace `uci' = . if (round(`uci', 0.001) < round(`DXmin1' , 0.001)) & (`uci' !=. ) & (`use' == 1) 
 
-		replace `effect' = . if (round(`effect', 0.001) < round(`DXmin1' , 0.001)) & (`use' == 1) 
-		replace `effect' = . if (round(`effect', 0.001) > round(`DXmax1' , 0.001)) & (`use' == 1)
+		replace `es' = . if (round(`es', 0.001) < round(`DXmin1' , 0.001)) & (`use' == 1) 
+		replace `es' = . if (round(`es', 0.001) > round(`DXmax1' , 0.001)) & (`use' == 1)
+		
+		if "`smooth'" != "" {		
+			replace `modellci' = `DXmin'  if (round(`modellci', 0.001) < round(`DXmin' , 0.001)) & (`use' == 1) 
+			replace `modeluci' = `DXmax'  if (round(`modeluci', 0.001) > round(`DXmax' , 0.001)) & (`modeluci' !=.) & (`use' == 1 ) 
+			
+			replace `modellci' = . if (round(`modeluci', 0.001) < round(`DXmin' , 0.001)) & (`modeluci' !=. ) & (`use' == 1 ) 
+			replace `modeluci' = . if (round(`modellci', 0.001) > round(`DXmax' , 0.001)) & (`modellci' !=. ) & (`use' == 1 )
+			replace `modeles' = . if (round(`modeles', 0.001) < round(`DXmin' , 0.001)) & (`use' == 1 ) 
+			replace `modeles' = . if (round(`modeles', 0.001) > round(`DXmax' , 0.001)) & (`use' == 1 )
+		}
 
 		summ `id'
 		local xaxislineposition = r(max)
@@ -4655,7 +5521,7 @@ end
 		
 		/*Xaxis 1 title */
 		local xaxistitlex1 `=(`DXmax1' + `DXmin1')*0.5'
-		local xaxistitlex2 `=(`DXmax2' + `DXmin2')*0.5'
+		local xaxistitlex2 `=(`DXmax1' + `DXmin1')*0.5 + `shift''
 		local xaxistitle1  (scatteri `=`xaxislineposition' + 2.25' `xaxistitlex1' "`plotstatse'", msymbol(i) mlabcolor(black) mlabpos(0) mlabsize(`texts'))
 		local xaxistitle2  (scatteri `=`xaxislineposition' + 2.25' `xaxistitlex2' "`plotstatsp'", msymbol(i) mlabcolor(black) mlabpos(0) mlabsize(`texts'))
 		
@@ -4699,89 +5565,193 @@ end
 		}
 		
 		//Shift the position of sensitivitiy plot
-		replace `lci' = `lci' + `DXmin2' - `DXmin1' if !`se' 
-		replace `uci' = `uci' + `DXmin2' - `DXmin1' if !`se' 
-		replace `effect' = `effect' + `DXmin2' - `DXmin1' if !`se' 
+		replace `lci' = `lci' + `shift' if !`se' 
+		replace `uci' = `uci' + `shift'  if !`se' 
+		replace `es' = `es' + `shift'  if !`se' 
 		
-		replace `DIAMbottomX' = `DIAMbottomX' + `DXmin2' - `DXmin1' if !`se' 
-		replace `DIAMtopX' = `DIAMtopX' + `DXmin2' - `DXmin1' if !`se' 
-		replace `DIAMleftX' = `DIAMleftX' + `DXmin2' - `DXmin1' if !`se' 
-		replace `DIAMrightX' = `DIAMrightX' + `DXmin2' - `DXmin1' if !`se' 			
+		if "`smooth'" != "" { 
+			replace `modellci' = `modellci' + `shift'  if !`se' 
+			replace `modeluci' = `modeluci' + `shift'  if !`se' 
+			replace `modeles' = `modeles' + `shift'  if !`se' 
+		}
+		
+		replace `DIAMbottomX' = `DIAMbottomX' + `shift'  if !`se' 
+		replace `DIAMtopX' = `DIAMtopX' + `shift'  if !`se' 
+		replace `DIAMleftX' = `DIAMleftX' + `shift' if !`se' 
+		replace `DIAMrightX' = `DIAMrightX' + `shift'  if !`se' 			
 	}	// end qui	
+	
+	tempvar tempOv overrallLine ovMin ovMax h0Line
+	
+	if `"`olineopt'"' == "" {
+		local olineopt "lwidth(thin) lcolor(red) lpattern(shortdash)"
+	}
+	if `"`vlineopt'"' == "" {
+		local vlineopt "lwidth(thin) lcolor(black) lpattern(solid)"
+	}
+	qui summ `id'
+	local DYmin = r(min)
+	local DYmax = r(max)+2
+	
+	forvalues r= 1(1)2 {
+		qui summ `es' if `use' == 3 & `se' == `=2 - `r''
+		local overall`r' = r(max)				
+		if `overall1' > `DXmax1' | `overall1' < `DXmin1' | "`ovline'" != "" {	// ditch if not on graph
+			local overallCommand`r' ""
+		}
+		else {
+			local overallCommand`r' `" (pci `=`DYmax'-2' `overall`r'' `borderline' `overall`r'', `olineopt') "'
+		
+		}
+		if "`ovline'" != "" {
+			local overallCommand`r' ""
+		}
+		if "`subline'" != "" & "`groupvar'" != "" {
+			local sublineCommand`r' ""
+			
+			qui label list `groupvar'
+			local nlevels = r(max)
+			forvalues l = 1/`nlevels' {
+				qui summ `es' if `use' == 2  & `groupvar' == `l' & (`se' == `=`r' - 1')
+				local tempSub`l' = r(mean)
+				qui summ `id' if `use' == 1 & `groupvar' == `l'
+				local subMax`l' = r(max) + 1
+				local subMin`l' = r(min) - 2
+				qui count if `use' == 1 & `groupvar' == `l' & (`se' == `=`r' - 1')
+				if r(N) > 1 {
+					local sublineCommand`r' `" `sublineCommand`r'' (pci `subMin`l'' `tempSub`l'' `subMax`l'' `tempSub`l'', `olineopt')"'
+				}
+			}
+		}
+		else {
+			local sublineCommand`r' ""
+		}
+	}
+	if `"`xline'"' != `""' {
+			tokenize "`xline'", parse(",")
+			if "`logscale'" != "" {
+				if "`1'" == "0" {
+					local xlineval = ln(`=10^(-`dp')')
+				}
+				else {
+					local xlineval = ln(`1')
+				}
+			}
+			else {
+				local xlineval = `1'
+			}
+			if "`3'" != "" {
+				local xlineopts = "`3'"
+			}
+			else {
+				local xlineopts = "lcolor(black)"
+			}
+			local xlineval2 =  `xlineval' + `shift'
+			local vlineCommand1 `" (pci `=`DYmax'-2' `xlineval' `borderline' `xlineval', `xlineopts') "'
+			local vlineCommand2 `" (pci `=`DYmax'-2' `xlineval2' `borderline' `xlineval2', `xlineopts') "'
+			
+			if (`xlineval' > `DXmax1' | `xlineval' < `DXmin1') & "`xline'" != "" {	// ditch if not on graph
+				local vlineCommand1 ""
+				local vlineCommand2 ""
+			}
+	}
+	
+	
 	/*===============================================================================================*/
 	/*====================================  GRAPH    ================================================*/
 	/*===============================================================================================*/
-		
+	if "`smooth'" != "" {
+		local xboxcenter "`modeles'"
+		local smoothcommands1 "(pcspike `id' `modellci' `id' `modeluci' if `use' == 1 , `smoothciopts')"
+		local smoothcommands2 "(scatter `id' `modeles' if `use' == 1 , `smoothpointopts')"
+	}
+	else {
+		local xboxcenter "`es'"
+	}
+	
+	//Observed CI
+	local cicommand "(pcspike `id' `lci' `id' `uci' if `use' == 1 , `ciopt')"
+	
+	//Diamond
+	local diamondcommand1 "(pcspike `DIAMleftY1' `DIAMleftX' `DIAMtopY' `DIAMtopX' if (`use' == 2 | `use' == 3) , `diamopt')"
+	local diamondcommand2 "(pcspike `DIAMtopY' `DIAMtopX' `DIAMrightY1' `DIAMrightX' if (`use' == 2 | `use' == 3) , `diamopt')"
+	local diamondcommand3 "(pcspike `DIAMrightY2' `DIAMrightX' `DIAMbottomY' `DIAMbottomX' if (`use' == 2 | `use' == 3) , `diamopt')"
+	local diamondcommand4 "(pcspike `DIAMbottomY' `DIAMbottomX' `DIAMleftY2' `DIAMleftX' if (`use' == 2 | `use' == 3) , `diamopt')"
+	
+	//Give name if none
+	if strpos(`"`foptions'"',"name(") == 0 {
+		local fname = "name(fplot, replace)"
+	}
+	if "$by_index_" != "" {
+		local fname = "name(fplot" + "$by_index_" + ", replace)"
+		noi di as res _n  "NOTE: forest plot name -> fplot$by_index_"
+	}
 	#delimit ;
 	twoway
-	 /*NOTE FOR RF, AND OVERALL LINES FIRST */ 
-		`notecmd' `overallCommand1' `sublineCommand1' `overallCommand2' `sublineCommand2' `hetGroupCmd'  `xaxis1' `xaxistitle1' 
-		`ticksx1' `xaxislabels1'  `xaxis2' `xaxistitle2'  `ticksx2' `xaxislabels2' `vlineCommand1' `vlineCommand2'
+		`notecmd' 
+		`overallCommand1' `sublineCommand1' `overallCommand2' `sublineCommand2' 
+		`hetGroupCmd'  
+		`xaxis1' `xaxistitle1' `ticksx1' `xaxislabels1'  
+		`xaxis2' `xaxistitle2'  `ticksx2' `xaxislabels2' 
+		`vlineCommand1' `vlineCommand2' 
 	 /*COLUMN VARIABLES */
 		`lcolCommands1' `lcolCommands2' `lcolCommands3' `lcolCommands4' `lcolCommands5' `lcolCommands6'
-		`lcolCommands7' `lcolCommands8' `lcolCommands9' `lcolCommands10' `lcolCommands11' `lcolCommands12'
-		`rcolCommands1' `rcolCommands2' 
+		`lcolCommands7' `lcolCommands8' `lcolCommands9' `lcolCommands10' `lcolCommands11' `lcolCommands12' 
+		`sercolCommands1' `sercolCommands2' `sercolCommands3' `sprcolCommands1' `sprcolCommands2' `sprcolCommands3'
 	 /*PLOT EMPTY POINTS AND PUT ALL THE GRAPH OPTIONS IN THERE */ 
-		(scatter `id' `effect' if `use' == 1, 
-			msymbol(none)		
+		(scatter `id' `xboxcenter' `iw' if `use' == 1 , 
+			`boxopts'			
 			yscale(range(`DYmin' `DYmax') noline reverse)
 			ylabel(none) ytitle("")
 			xscale(range(`AXmin' `AXmax') noline)
 			xlabel(none)
 			yline(`borderline', lwidth(thin) lcolor(gs12))
-			xtitle("") legend(off) xtick(""))
+			xtitle("") legend(off) xtick("")) 
 	 /*HERE ARE GRIDS */
 		`betweengrids'			
 	 /*HERE ARE THE CONFIDENCE INTERVALS */
-		(pcspike `id' `lci' `id' `uci' if `use' == 1 , `ciopt')	
+		`cicommand' `smoothcommands1'
 	 /*ADD ARROWS  `ICICmd1' `ICICmd2' `ICICmd3'*/
 		(pcarrow `id' `uci' `id' `lci' if `leftarrow' == 1 , `arrowopt')	
 		(pcarrow `id' `lci' `id' `uci' if `rightarrow' == 1 , `arrowopt')	
 		(pcbarrow `id' `lci' `id' `uci' if `biarrow' == 1 , `arrowopt')	
 	 /*DIAMONDS FOR SUMMARY ESTIMATES -START FROM 9 O'CLOCK */
-		(pcspike `DIAMleftY1' `DIAMleftX' `DIAMtopY' `DIAMtopX' if (`use' == 2 | `use' == 3) , `diamopt')
-		(pcspike `DIAMtopY' `DIAMtopX' `DIAMrightY1' `DIAMrightX' if (`use' == 2 | `use' == 3) , `diamopt')
-		(pcspike `DIAMrightY2' `DIAMrightX' `DIAMbottomY' `DIAMbottomX' if (`use' == 2 | `use' == 3) , `diamopt')
-		(pcspike `DIAMbottomY' `DIAMbottomX' `DIAMleftY2' `DIAMleftX' if (`use' == 2 | `use' == 3) , `diamopt') 
+		
+		`diamondcommand1'
+		`diamondcommand2'
+		`diamondcommand3'
+		`diamondcommand4'
 	 /*LAST OF ALL PLOT EFFECT MARKERS TO CLARIFY  */
-		(scatter `id' `effect' if `use' == 1 , `pointopt')		
-		,`foptions' name(fplot, replace)
+		(scatter `id'  `es'  if `use' == 1 , `pointopt') 
+		`smoothcommands2' 
+		`overallCommand1' `overallCommand2'	
+		,`foptions' `fname'
 		;
 		#delimit cr		
 			
-		if "$by_index_" != "" {
-			qui graph dir
-			local gnames = r(list)
-			local gname: word $by_index_ of `gnames'
-			tokenize `gname', parse(".")
-			if "`3'" != "" {
-				local ext =".`3'"
-			}
-			
-			qui graph rename fplot`ext' fplot$by_index_`ext', replace
-		}
+
 		if `"`graphsave'"' != `""' {
 			di _n
 			noi graph save `graphsave', replace
-		}			
-		
+		}				
 end
 
 /*==================================== GETWIDTH  ================================================*/
 /*===============================================================================================*/
-capture program drop getWidth
-program define getWidth
-version 14.0
+capture program drop getlen
+program define getlen
+version 14.1
 //From metaprop
 
 qui{
+
 	gen `2' = 0
 	count
 	local N = r(N)
 	forvalues i = 1/`N'{
 		local this = `1'[`i']
 		local width: _length "`this'"
-		replace `2' =  `width' +1 in `i'
+		replace `2' =  `width' in `i'
 	}
 } 
 
@@ -4797,6 +5767,8 @@ end
 		syntax varlist,	
 			selogodds(name) /*Log odds for se*/
 			splogodds(name) /*Log odds for sp*/
+			popabsoutse(name) /*Log odds for se*/
+			popabsoutsp(name) /*Log odds for sp*/
 			v(name) /*Var-cov for log odds se & se*/
 			bvar(name) /*Between study var-cov*/
 			model(string) /*model*/
@@ -4807,6 +5779,7 @@ end
 			LEVel(integer 95) /*Significance level*/
 			SUMMaryonly
 			COLorpalette(string) /*soptions: Colors seperated by space*/
+			noPOPest  /*Suppress population statistic*/
 			noPREDiction  /*soptions:no Prediction region*/
 			noCREG  /*no confidence region*/
 			noCURve  /*soptions:no curve*/
@@ -4883,7 +5856,12 @@ end
 		/*Options*/
 		// CI options
 		if `"`ciopt'"' == "" {
-			local ciopt "lpattern(dash)"
+			if "`model'" == "random" {
+				local ciopt "lpattern(dash)"
+			}
+			else {
+				local ciopt "lpattern(solid)"
+			}
 		}
 		else {
 			local forbidden "lcolor"
@@ -4915,6 +5893,7 @@ end
 		// Overall Point options
 		if `"`opointopt'"' == "" {
 			local opointopt "msymbol(D)"
+			local popopointopt "msymbol(Dh)"
 		}
 		else {
 			local forbidden "mcolor"
@@ -5021,12 +6000,19 @@ end
 				//Centre
 				if r(N) > 1 {
 					if `p' > 1 {
+					
 						local mux`j' = 1 - invlogit(`splogodds'[`nrows', 1])
 						local muy`j' = invlogit(`selogodds'[`nrows', 1])
+						
+						local popmux`j' = 1 - `popabsoutsp'[`nrows', 1]
+						local popmuy`j' = `popabsoutse'[`nrows', 1]
 					}
 					else{
 						local mux`j' = 1 - invlogit(`splogodds'[`j', 1])
 						local muy`j' = invlogit(`selogodds'[`j', 1])
+						
+						local popmux`j' = 1 - `popabsoutsp'[`j', 1]
+						local popmuy`j' = `popabsoutse'[`j', 1]
 					}
 				}
 				else {						
@@ -5041,6 +6027,15 @@ end
 					local ++index
 					local legendlabel `"lab(`index' "Summary point") `legendlabel'"'
 					local legendorder `"`index'  `legendorder'"'				
+				}
+				if "`popest'" == "" {
+					local popcentre `"`popcentre' (scatteri `popmuy`j'' `popmux`j'', mcolor(`color') `popopointopt')"'
+					
+					if `nlevels' == 1 {
+						local ++index
+						local legendlabel `"lab(`index' "Population Mean") `legendlabel'"'
+						local legendorder `"`index'  `legendorder'"'				
+					}
 				}
 				//Crosses
 				if "`model'" == "fixed" | (r(N) < 3 & "`model'" == "random" ){ 
@@ -5281,9 +6276,19 @@ end
 			local soptions `"ysize(5)  `soptions'"'
 		}
 		
+		//Give name if none
+		if strpos(`"`soptions'"',"name(") == 0 {
+			local sname = "name(sroc, replace)"
+		}
+		if "$by_index_" != "" {
+			local sname = "name(sroc" + "$by_index_" + ", replace)"
+			noi di as res _n  "NOTE: SROC plot name -> sroc$by_index_"
+		}
+		
 		#delimit ;
 		graph tw 
 			`centre'
+			`popcentre'
 			`kross'
 			`sroc'
 			`cregion'
@@ -5292,10 +6297,10 @@ end
 			`rings'
 			`idbubble'
 			,
-			`legendstr' `soptions' name(sroc, replace)
+			`legendstr' `soptions' `sname'
 		;
 		#delimit cr
-		if "$by_index_" != "" {
+		/*if "$by_index_" != "" {
 			qui graph dir
 			local gnames = r(list)
 			local gname: word $by_index_ of `gnames'
@@ -5306,7 +6311,7 @@ end
 			
 			qui graph rename sroc`ext' sroc$by_index_`ext', replace
 			
-		}
+		}*/
 		
 		if `"`graphsave'"' != `""' {
 			di _n
@@ -5625,3 +6630,1052 @@ end
 		}
 		
 	end
+/*+++++++++++++++++++++++++	SUPPORTING FUNCTIONS:  postsim +++++++++++++++++++++++++
+							Simulate & summarize posterior distribution
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/	
+cap program drop postsim
+program define postsim, rclass
+version 14.1
+	#delimit ;
+	syntax [if] [in], todo(string) orderid(varname) studyid(varname) estimates(name) 
+	[regressors(varlist) absoutse(name) absoutsp(name) serrout(name) sprrout(name) orout(name) link(string) se(varname) sp(varname)
+	modeles(varname) modellci(varname) modeluci(varname) outplot(string) baselevel(integer 1) bcov(string) wcov(string)
+	model(string) by(varname) level(real 95) general comparative abnetwork cbnetwork  varx(varname) nsims(string)]
+	;
+	#delimit cr 
+	
+	marksample touse, strok
+	
+	tempname betacoef rawcoef varrawcoef ///
+				fullrawcoef fullvarrawcoef X beta sims ///
+				popabsout popabsouti poprrout popserrout  popsprrout popserrouti popsprrouti ///
+				popseorouti popsporouti popselorouti popsplorouti  ///
+				poporout popseorout popsporout poporouti poplorout ///
+				popselorout popsplorout poplorouti simvar ///
+				popabsoutse popabsoutsei popabsoutsp popabsoutspi serow sprow
+	
+	tempvar feff sfeff reff sreff reffse sreffse reffsse sreffsse simsreffse simsreffsse  ///
+			reffsp sreffsp reffssp sreffssp simsreffsp simsreffssp eta insample ///
+			newobs idpair gid rid sid hold holdleft holdright ///
+			simmu sumsehat meansehat sumsphat meansphat subset subsetid subsetid1 sumsehat1 ///
+			meansehat1 gid1 modelp modelrr modelor modellor modelse ///
+			sumserrhat sumsprrhat sumseorhat sumsporhat sumselorhat sumsplorhat ///
+			meanserrhat meanseorhat meanselorhat meansprrhat meansporhat ///
+			meansplorhat varsp varse vars fisherrho ///
+			simvars simvarse simvarsp simfisherrho simrho covar simcovar ///
+			simwvars simwvarse simwvarsp wvars wvarse wvarsp
+			
+	if "`link'" == "cloglog" {
+		local invfn "invcloglog"
+	}
+	else if "`link'" == "loglog" {
+		local invfn "1-invcloglog"
+	}
+	else {
+		local invfn "invlogit"
+	}		
+	
+	//Restore 
+	qui {
+		estimates restore `estimates'
+		local predcmd = e(predict)
+		gen `insample' = e(sample)
+		
+		//Coefficients estimates and varcov
+		mat `fullrawcoef' = e(b)
+		mat `fullvarrawcoef' = e(V)
+		
+		local ncoef = colsof(`fullrawcoef')
+		local rho = 0
+		local w = 0	
+		if "`model'" == "random" {
+			if "`wcov'" != "" {
+					if strpos("`wcov'", "ind") != 0 {
+						local w = 2
+						local wvarnames "`wvarse' `wvarsp'"
+						local wsimvarnames "`simwvarse'  `simwvarsp'"
+					}
+					else if strpos("`wcov'", "id") != 0 {
+						local w = 1
+						local wvarnames "`wvars'"
+						local wsimvarnames "`simwvars'"
+					}
+			}		
+			if strpos("`bcov'", "uns") != 0 {
+				local nfeff = `=`ncoef' - 3 - `w''
+				
+				if "`predcmd'" == "meqrlogit_p" {
+					local rho = tanh(`fullrawcoef'[1, `=`ncoef'-`w''])
+					local varnames "`varse' `varsp' `fisherrho' `wvarnames'"
+					local simvarnames "`simvarse'  `simvarsp' `simfisherrho' `wsimvarnames'"
+				}
+				else {
+					local rho = `fullrawcoef'[1, `=`ncoef'-`w'']/(sqrt(`fullrawcoef'[1, `=`ncoef'-1-`w'']*`fullrawcoef'[1, `=`ncoef'-2-`w'']))
+					local varnames "`varse' `varsp' `covar' `wvarnames'"
+					local simvarnames "`simvarse'  `simvarsp' `simcovar' `wsimvarnames'"
+				}
+			}
+			else if "`bcov'" =="identity" {
+				local nfeff = `=`ncoef' - 1 - `w''
+				local varnames "`vars' `wvarnames'"
+				local simvarnames "`simvars' `wsimvarnames'"
+			}
+			else if strpos("`bcov'", "exc") != 0 | strpos("`bcov'", "ind") != 0 {
+				local nfeff = `=`ncoef' - 2 - `w''
+				
+				if strpos("`bcov'", "exc") != 0 {
+					if "`predcmd'" == "meqrlogit_p" {
+						local rho = tanh(`fullrawcoef'[1, `=`ncoef'-`w''])
+						local varnames "`vars' `fisherrho' `wvarnames'"
+						local simvarnames "`simvars'  `simfisherrho' `wsimvarnames'"
+					}
+					else {
+						local rho = `fullrawcoef'[1, `=`ncoef'-`w'']/(sqrt(`fullrawcoef'[1, `=`ncoef'-1-`w'']*`fullrawcoef'[1, `=`ncoef'-2-`w'']))
+						local varnames "`vars' `covar' `wvarnames'"
+						local simvarnames "`simvars'  `simcovar' `wsimvarnames'"
+					}
+				}
+				
+				if strpos("`bcov'", "ind") != 0 {
+					local varnames "`varse' `varsp' `wvarnames'"
+					local simvarnames "`simvarse'  `simvarsp' `wsimvarnames'"
+				}
+			}
+			else if (strpos("`bcov'", "sp") != 0) {
+				local varnames "`varsp' `wvarnames'"
+				local simvarnames "`simvarsp' `wsimvarnames'"
+			}
+			else if (strpos("`bcov'", "se") != 0) {
+				local varnames "`varse' `wvarnames'"
+				local simvarnames "`simvarse' `wsimvarnames'"
+			}
+			
+		}
+		else {
+			local nfeff = `ncoef'
+		}
+		//Get the FE parameters and their covariances
+		mat `betacoef' = `fullrawcoef'[1, 1..`nfeff']
+
+		//Predict		
+		//Fill data if less than 7
+		count
+		local nobs = r(N)
+		if ((`nobs' < 7) & ("`model'" == "random")) {
+			local multipler = int(ceil(7/`nobs'))
+			qui expand `multipler', gen(`newobs')
+		}
+		
+		predict `feff', xb  //FE
+		predict `sfeff', stdp //se of FE
+		
+		if "`model'" == "random" {
+			if "`wcov'" == "" {
+				predict `reffse' `reffsp', reffects reses(`sreffse' `sreffsp')  //se=1  sp=2 
+					
+				gen `reff' = `reffse'*`se' + `reffsp'*`sp'
+				gen `sreff' = sqrt(`sreffse'^2 + `sreffsp'^2)
+			}
+			else {
+				predict `reffse' `reffsp' `reffsse' `reffssp', reffects reses(`sreffse' `sreffsp' `sreffsse' `sreffssp')  //intse=1  intsp=2 slopese=3  slopesp=4 
+					
+				gen `reff' = `reffse'*`se' + `reffsse'*`se'  + `reffsp'*`sp' + `reffssp'*`sp'
+				gen `sreff' = sqrt(`sreffse'^2 + `sreffsp'^2 + `sreffsse'^2 + `sreffssp'^2)
+			}
+						
+			
+			gen `eta' = `feff' + `reff' //linear predictor				
+			gen `modelse' = sqrt(`sreffse'^2 + `sreffsp'^2 + `sfeff'^2) if `insample'==1
+			
+		}
+		else {
+			gen `eta' = `feff' 
+			gen `modelse' = `sfeff' if `insample'==1
+		}
+		
+		//Revert to original data if filler data was generated
+		if (("`model'" == "random") & (`nobs' < 7))  {
+			keep if !`newobs'
+		}
+		
+		//Smooth p estimates
+		gen `modelp' = `invfn'(`eta') if `insample' == 1
+		
+		//identifiers
+		gsort `insample' `se' `orderid'
+		*egen `rid' = seq() if `insample'==1  //rowid
+		
+		if "`comparative'`cbnetwork'`abnetwork'" != ""  {
+			count if `insample' == 1  
+			local Nobs = `=r(N)'*0.25
+			
+			egen `sid' = group(`studyid') //Studyid
+			
+			if "`regressors'" != "" {
+				sort `insample' `se' `regressors' `orderid'
+			}
+			if "`cbnetwork'" != "" {
+				sort `insample' `se' `varx' `orderid'
+			}
+			egen `gid' = seq() if `insample' == 1, f(1) t(`Nobs') b(1) 
+			egen `idpair' = group(`varx') if `insample' == 1
+			sort `se' `gid' `idpair'
+			
+			/*
+			egen `gid' = group(`studyid' `by') if `insample'==1  
+			gsort `gid' `se' `orderid' `varx'
+			bys `gid' `se': egen `idpair' = seq()
+			*/
+			egen `rid' = seq() if `insample'==1  //rowid
+			
+			if "`abnetwork'" == "" {
+				gen `modelrr' = `modelp'[_n] / `modelp'[_n-1] if (`gid'[_n]==`gid'[_n-1]) & (`se'[_n]==`se'[_n-1]) & (`idpair' == 2)
+				gen `modelor' = (`modelp'[_n]/(1 - `modelp'[_n])) / (`modelp'[_n-1]/(1 - `modelp'[_n-1])) if (`gid'[_n]==`gid'[_n-1]) & (`se'[_n]==`se'[_n-1]) & (`idpair' == 2)
+				gen `modellor' = ln(`modelor')
+			}
+		}
+		else {
+			egen `sid' = group(`studyid') //Studyid
+			gsort `insample' `se' `orderid' 
+			bys `se' : egen `gid' = seq() if `insample'==1  //gid
+			egen `rid' = seq() if `insample'==1  //rowid
+		}
+				
+		//Generate designmatrix
+		local colnames :colnames `betacoef'
+		local nvars: word count `colnames'
+		forvalues i=1(1)`nvars' {
+			tempvar v`i' beta`i'
+			
+			local var`i' : word `i' of `colnames'	
+			local left
+			local right
+			local param
+			local rightleft
+			local rightright
+			local leftleft
+			local leftright
+			
+			//Split the term
+			if strpos("`var`i''", "#") != 0 {
+				tokenize `var`i'', parse("#")
+				if "`5'" != "" {
+					local left = "`1'"
+					local right = "`3'"
+					local param = "`5'"
+				}
+				else {
+					local right = "`1'"
+					local param = "`3'"
+				}
+				
+				tokenize `param', parse(.)
+				local param  = "`3'"
+				
+				tokenize `right', parse(.)
+				local rightleft = "`1'"
+				local rightright = "`3'"
+				
+				if "`left'" != "" {
+					tokenize `left', parse(.)
+					local leftleft = "`1'"
+					local leftright = "`3'"
+				}
+			}
+			else {
+				local param "`var`i''"
+			}
+			
+			//Constants
+			if "`right'" == "" {
+				cap confirm var `param'
+				if _rc!=0  {	
+					gen `v`i'' = 0
+				}
+				else {				
+					gen `v`i'' = `param'
+				}
+			}
+			
+			//Main effects
+			if "`right'" != "" & "`left'" == ""  {
+				//Continous  
+				if strpos("`rightleft'", "c") != 0 {
+					gen `v`i'' = `param'*`rightright'
+				}
+				else {
+					//Categorical
+					if strpos("`rightleft'", "bn") != 0 {
+						local rightleft = ustrregexra("`rightleft'", "bn", "")
+					}
+					if strpos("`rightleft'", "b") != 0 {
+						local rightleft = ustrregexra("`rightleft'", "b", "")
+					}		
+					gen `v`i'' = 0 +  1*`param'*(`rightright' == `rightleft')
+				}
+			}
+			
+			//Interactions
+			if "`left'" != "" {	
+				//continous left
+				if strpos("`leftleft'", "c") == 1 {
+					local factorleft 0
+				}
+				else {
+					local factorleft 1
+				}
+				
+				//continous right
+				if strpos("`rightleft'", "c") == 1 {
+					local factorright 0
+				}
+				else {
+					local factorright 1
+				}
+						
+				local part 1
+				local prefices "`leftleft' `rightleft'"
+				foreach prefix of local prefices {
+					//Continous  
+					if strpos("`prefix'", "c") != 0 {
+						local level`part' = `part'
+					}
+					else {
+						//Categorical
+						if strpos("`prefix'", "bn") != 0 {
+							local level`part' = ustrregexra("`prefix'", "bn", "")
+						}
+						else if strpos("`prefix'", "b") != 0 {
+							local level`part' = ustrregexra("`prefix'", "b", "")
+						}
+						else if strpos("`prefix'", "o") != 0 {
+							local level`part' = ustrregexra("`prefix'", "o", "")
+						}
+						else {
+							local level`part' = `prefix'
+						}
+					}
+					local ++part
+					
+				}
+				gen `v`i'' = ((`factorleft'*(`leftright'==`level1') + !`factorleft'*`leftright') * (`factorright'*(`rightright'==`level2') + !`factorright'*`rightright'))*`param'
+				
+			}
+			local vnamelist "`vnamelist' `v`i''"
+			local bnamelist "`bnamelist' `beta`i''"
+		}
+		
+		if "`model'" == "random" {
+			//Add varnames
+			local bnamelist "`bnamelist' `varnames'"
+		}
+		
+		set matsize `nsims'
+
+		//make matrices from the dataset
+		//roweq(`idpair')
+		mkmat `vnamelist' if `insample'==1, matrix(`X')  rownames(`rid')
+		
+		tempvar present
+		gen `present' = 1	
+		
+		//Simulate the parameters
+		if `nobs' < `nsims' {
+			set obs `nsims'
+		}
+		
+		drawnorm `bnamelist', n(`nsims') cov(`fullvarrawcoef') means(`fullrawcoef') seed(1)
+
+		mkmat `bnamelist', matrix(`beta')
+		
+		//Subset the matrix
+		if `ncoef' > `nfeff' {
+			mat `simvar' = `beta'[1..`nsims', `=`nfeff'+1'..`ncoef']
+			mat `beta' = `beta'[1..`nsims', 1..`nfeff']
+		}
+		
+		mat `sims' = `beta'*`X''
+		
+		//Construct the names
+		local ncols = colsof(`sims') //length of the vector
+		local cnames :colnames `sims'
+		
+		local matcolnames
+		
+		forvalues c=1(1)`ncols' {
+			local matrid : word `c' of `cnames'
+
+			tempvar ferow`matrid'
+			local matcolnames = "`matcolnames' `ferow`matrid''"
+		}
+		
+		if "`model'" == "random" {
+			//Append the var matrix
+			mat `sims' = (`sims', `simvar')
+			
+			//Add varnames
+			local matcolnames "`matcolnames' `simvarnames'"
+		}
+		
+		//pass the names
+		matname `sims' `matcolnames', col(.) explicit
+
+		//Bring the matrix to the dataset
+		svmat `sims', names(col)
+		
+		if "`wcov'" !="" {
+				if strpos("`wcov'", "ind") != 0 {
+					if "`predcmd'" == "meqrlogit_p" {
+						gen `simsreffsse' = exp(`simwvarse') 
+						gen `simsreffssp' = exp(`simwvarsp')
+					}
+				}
+				else if strpos("`wcov'", "id") != 0 {
+					if "`predcmd'" == "meqrlogit_p" {
+						gen `simsreffsse' = exp(`simwvars') 
+						gen `simsreffssp' = exp(`simwvars')
+					}
+				}
+		}
+		if "`bcov'" !="" {
+			if (strpos("`bcov'", "uns") == 0) & (strpos("`bcov'", "exc") == 0) {
+				gen `simrho' = 0				
+			}
+			if (strpos("`bcov'", "exc") != 0) | (strpos("`bcov'", "id") != 0){
+				gen `simvarse' = `simvars' 
+				gen `simvarsp' = `simvars'
+			}
+			if (strpos("`bcov'", "sp") != 0) {
+				gen `simvarse' = 0	
+			}
+			if (strpos("`bcov'", "se") != 0) {
+				gen `simvarsp' = 0	
+			}
+			if "`predcmd'" == "melogit_p" {				
+				//Truncate the values to zero
+				replace `simvarse' = 0 if `simvarse' < 0
+				replace `simvarsp' = 0 if `simvarsp' < 0
+			}
+			if (strpos("`bcov'", "uns") != 0) | strpos("`bcov'", "exc") != 0   {
+				if "`predcmd'" == "meqrlogit_p" {
+					gen `simrho' = tanh(`simfisherrho')
+				}
+				else {				
+					//Truncate the values to zero
+					replace `simcovar' = 0 if `simvarse' == 0 & `simvarsp' == 0	
+					gen `simrho' = `simcovar'/sqrt(`simvarsp'*`simvarse')
+				}
+			}
+			if "`predcmd'" == "meqrlogit_p" {
+				gen `simsreffse' = exp(`simvarse') //Marginal se
+				gen `simsreffsp' = sqrt((1 - (`simrho')^2)*(exp(`simvarsp')^2)) //Conditional se
+			}
+			else {			
+				gen `simsreffse' = sqrt(`simvarse') //Marginal se
+				gen `simsreffsp' = sqrt((1 - (`simrho')^2)*(`simvarsp')) //Conditional se
+			}
+		}
+		
+
+		//# of obs
+		count if `insample' == 1
+		local nobs = r(N)
+		
+		//Generate the p's and r's
+		forvalues j=1(1)`nobs' { 
+			
+			//Study index
+			sum `sid' if `rid' == `j'
+			local sidj = r(min)
+			
+			//group index
+			sum `gid' if `rid' == `j'
+			local index = r(min)
+			
+			//Parameter
+			sum `se' if `rid' == `j'
+			local param = r(min)
+			
+			if `param' == 1 {
+				local prefix "se"
+			}
+			else {
+				local prefix "sp"
+			}
+			
+			tempvar phat`j' `prefix'hat`index' 
+			
+			//Figure out if new study or not
+			local new`prefix'study 1
+			if `j' > 1 {
+				sum `sid' if (`rid' == `=`j'-1' )
+				local prevsid = r(min)
+				local new`prefix'study = (`sidj' != `prevsid')
+			}				
+				
+			if "`comparative'`cbnetwork'`abnetwork'" == "" {	
+				if "`model'" == "random" {
+					//EB re 
+					sum `reff' if `rid' == `j'
+					local reff_`j' = r(mean)
+					
+					//re  simulate					
+					if `new`prefix'study' {						
+						//Generate the variables
+						tempvar `prefix'study`sidj'  
+						gen ``prefix'study`sidj'' = rnormal(0, `simsreff`prefix'') 
+					}
+					
+					gen `phat`j'' = `invfn'(`reff_`j'' + ``prefix'study`sidj'' + `ferow`j'')
+										
+				}
+				else {
+					//Create variable
+					gen `phat`j'' = `invfn'(`ferow`j'')
+				}
+			}
+			
+			if "`comparative'" != "" | "`cbnetwork'" != "" | "`abnetwork'" != "" {
+				sum `idpair' if `rid' == `j'
+				local pair = r(min)
+				
+				//Generate the variables
+				tempvar `prefix'hat_`pair'`index' 
+				
+				if "`model'" == "random" {
+					//EB re 
+					sum `reff' if `rid' == `j' 
+					local reff_`j' = r(mean)
+						
+					if `pair' == 1 {					
+						//re  simulate
+						if `new`prefix'study' {						
+							//Generate the variables
+							tempvar `prefix'study`sidj'  
+							gen ``prefix'study`sidj'' = rnormal(0, `simsreff`prefix'') 
+						}
+					}
+					if "`wcov'" != "" {
+						tempvar s`prefix'study`j' 
+						
+						gen `s`prefix'study`j'' = rnormal(0, `simsreffs`prefix'')
+						replace ``prefix'study`sidj'' = ``prefix'study`sidj'' + `s`prefix'study`j''
+					}
+					gen `phat`j'' = `invfn'(`reff_`j'' + ``prefix'study`sidj'' + `ferow`j'')				
+				}
+				else {
+					gen `phat`j'' = `invfn'(`ferow`j'')
+				}
+				if "`abnetwork'" == "" {					
+					//Create the pairs
+					gen ``prefix'hat_`pair'`index'' = `phat`j''
+					
+					if `pair' == 2 {
+						tempvar `prefix'rrhat`index' `prefix'orhat`index' `prefix'lorhat`index'
+						
+						gen ``prefix'rrhat`index'' = ``prefix'hat_2`index'' / ``prefix'hat_1`index''
+						gen ``prefix'orhat`index'' = (``prefix'hat_2`index''/(1 - ``prefix'hat_2`index'')) / (``prefix'hat_1`index'' /(1 - ``prefix'hat_1`index''))
+						gen ``prefix'lorhat`index'' = ln(``prefix'orhat`index'')
+					}
+				}
+			}
+		}			
+				
+		if "`todo'" == "p" {
+			//Do twice; 
+			local shortnames "se sp"
+			local parameters "`se' `sp'"
+			local fullnames "Sensitivity Specificity"
+			
+			forvalues run=1(1)2 {
+			
+				local prefix : word `run' of `shortnames'
+				local name : word `run' of `fullnames'
+				local parameter : word `run' of `parameters'
+			
+				//Summarize 
+				local nrow`prefix' = rowsof(`absout`prefix'') //length of the vector
+				local rnames :rownames `absout`prefix''
+				local eqnames :roweq `absout`prefix''
+				local newnrows = 0
+				local mindex = 0
+					
+				foreach vari of local eqnames {		
+					local ++mindex
+					local group : word `mindex' of `rnames'
+					
+					//Skip if continous variable
+					if (strpos("`vari'", "_") == 1) & ("`group'" != "`name'") & ("`group'" != "Overall"){
+						continue
+					}
+					
+					cap drop `subset' `subsetid'
+					
+					if ("`group'" != "`name'") & ("`group'" != "Overall") {
+						if strpos("`vari'", "*") == 0 {
+							cap drop `hold'
+							decode `vari', gen(`hold')
+							cap drop `subset'
+							local latentgroup = ustrregexra("`group'", "_", " ")
+							gen `subset' = 1 if `hold' == "`latentgroup'" & `insample' == 1 & `parameter'
+						}
+						else {
+							tokenize `vari', parse("*")
+							local leftvar = "`1'"
+							local rightvar = "`3'"
+							
+							tokenize `group', parse("|")
+							local leftgroup = "`1'"
+							local rightgroup = "`3'"
+							
+							cap drop `holdleft' `holdright'
+							decode `leftvar', gen(`holdleft')
+							decode `rightvar', gen(`holdright')
+							cap drop `subset'
+							local latentleftgroup = ustrregexra("`leftgroup'", "_", " ")
+							local latentrightgroup = ustrregexra("`rightgroup'", "_", " ")
+							gen `subset' = 1 if (`holdleft' == "`latentleftgroup'") & (`holdright' == "`latentrightgroup'") & (`insample' == 1) & `parameter'
+						}					
+						egen `subsetid' = seq() if `subset' == 1 
+					}
+					else {
+						//All
+						gen `subset' = 1 if `insample' == 1 & `parameter'
+						egen `subsetid' = seq() if `subset' == 1
+					}
+					
+					count if `subset' == 1 
+					local nsubset = r(N)
+					
+					//Compute mean of simulated values
+					cap drop `sum`prefix'hat' `mean`prefix'hat' 
+					gen `sum`prefix'hat' = 0	
+					
+					forvalues j=1(1)`nsubset' {
+						//Study index
+						sum `rid' if `subsetid' == `j'
+						local index = r(min)
+											
+						replace `sum`prefix'hat' = `sum`prefix'hat' + `phat`index''
+					}
+					
+					//Obtain mean of modelled estimates
+					sum `modelp' if `subset' == 1 
+					local meanmodel`prefix' = r(mean)
+							
+					gen `mean`prefix'hat' = `sum`prefix'hat'/`nsubset'
+					
+					//Standard error
+					sum `mean`prefix'hat'	
+					local post`prefix'se = r(sd)
+								
+					//Obtain the quantiles
+					centile `mean`prefix'hat', centile(50 `=(100-`level')/2' `=100 - (100-`level')/2')
+					local `prefix'median = r(c_1) //Median
+					local `prefix'lowerp = r(c_2) //Lower centile
+					local `prefix'upperp = r(c_3) //Upper centile
+									
+					mat `popabsout`prefix'i' = (`meanmodel`prefix'', `post`prefix'se', ``prefix'median', ``prefix'lowerp', ``prefix'upperp')
+					mat rownames `popabsout`prefix'i' = `vari':`group'
+									
+					//Stack the matrices
+					local ++newnrows
+					if `newnrows' == 1 {
+						mat `popabsout`prefix'' = `popabsout`prefix'i'	
+					}
+					else {
+						mat `popabsout`prefix'' = `popabsout`prefix''	\  `popabsout`prefix'i'
+					}
+				}
+			}
+			
+			mat `serow' = J(1, 5, .)
+			mat `sprow' = J(1, 5, .)
+					
+			mat rownames `serow' = "Sensitivity"
+			mat rownames `sprow' = "Specificity" 
+			
+			if `nrowse' > 1 {
+					mat `popabsout' = `serow' \ `popabsoutse'
+			}
+			else {
+				mat `popabsout' =  `popabsoutse'
+			}
+			if `nrowsp' > 1 {
+				mat `popabsout' = `popabsout' \ `sprow' \ `popabsoutsp'
+			}
+			else {
+				mat `popabsout' = `popabsout' \ `popabsoutsp'
+			}
+		}
+			
+		if "`todo'" == "r" {
+			//Do twice; 
+			local shortnames "se sp"
+			local parameters "`se' `sp'"
+			local fullnames "Sensitivity Specificity"
+			
+			forvalues run = 1(1)2 {
+			
+				local prefix : word `run' of `shortnames'
+				local name : word `run' of `fullnames'
+				local parameter : word `run' of `parameters'
+			
+				//Summarize RR
+				local nrows = rowsof(``prefix'rrout') //length of the vector
+				local rnames :rownames ``prefix'rrout'
+				local eqnames :roweq  ``prefix'rrout'
+				local newnrows 0
+				
+				if "`comparative'`cbnetwork'" == "" {
+					local catvars : list uniq eqnames	
+					foreach vari of local catvars {
+						
+						cap drop `hold'	
+						decode `vari', gen(`hold')
+						label list `vari'
+						local ngroups = r(max)
+						local baselab:label `vari' `baselevel'
+						
+						//count in basegroup
+						tempvar mean`prefix'hat`baselevel' mean`prefix'rrhat`baselevel' mean`prefix'orhat`baselevel' mean`prefix'lorhat`baselevel' gid`baselevel' sum`prefix'hat`baselevel' subsetid`baselevel'
+						tempname pop`prefix'rrouti`baselevel' pop`prefix'orouti`baselevel' pop`prefix'lorouti`baselevel'
+						
+						count if `vari' == `baselevel' & `insample' == 1 & `parameter'
+						local ngroup`baselevel' = r(N)
+						
+						egen `subsetid`baselevel'' = group(`rid') if `vari' == `baselevel' & `insample' == 1 & `parameter'
+						
+						cap drop `sum`prefix'hat`baselevel'' `mean`prefix'hat`baselevel''
+						//basegroup
+						gen `sum`prefix'hat`baselevel'' = 0
+						
+						forvalues j=1(1)`ngroup`baselevel'' {
+							sum `rid' if `subsetid`baselevel'' == `j'
+							local index = r(min)
+							
+							qui replace `sum`prefix'hat`baselevel'' = `sum`prefix'hat`baselevel'' + ``prefix'hat`index''
+						}
+						gen `mean`prefix'hat`baselevel'' = `sum`prefix'hat`baselevel''/`ngroup`baselevel''
+						
+						sum `modelp' if `vari' == `baselevel' & `insample' == 1 & `parameter'
+						local meanmodel`prefix'`baselevel' = r(mean)
+						
+						mat `pop`prefix'rrouti`baselevel'' = (1, 0, 1, 1, 1)
+						mat `pop`prefix'orouti`baselevel'' = (1, 0, 1, 1, 1)
+						mat `pop`prefix'lorouti`baselevel'' = (1, 0, 1, 1, 1)
+						
+						local baselab = ustrregexra("`baselab'", " ", "_")
+						mat rownames `pop`prefix'rrouti`baselevel'' = `vari':`baselab'
+						mat rownames `pop`prefix'orouti`baselevel'' = `vari':`baselab'
+						mat rownames `pop`prefix'lorouti`baselevel'' = `vari':`baselab'
+						
+						//Other groups
+						forvalues g=1(1)`ngroups' {
+							if `g' != `baselevel' {
+								tempvar mean`prefix'hat`g' mean`prefix'rrhat`g' mean`prefix'orhat`g' mean`prefix'lorhat`g' gid`g' sum`prefix'hat`g' subsetid`g'
+								tempname pop`prefix'rrouti`g' pop`prefix'orouti`g' pop`prefix'lorouti`g'
+								
+								local glab:label `vari' `g'
+								count if `vari' == `g' & `insample' == 1 & `parameter'
+								local ngroup`g' = r(N)	
+								egen `subsetid`g'' = group(`rid') if `vari' == `g' & `insample' == 1 & `parameter'
+								
+								gen `sum`prefix'hat`g'' = 0
+								
+								//Group of interest
+								forvalues j=1(1)`ngroup`g'' {
+									sum `rid' if `subsetid`g'' == `j'
+									local index = r(min)			
+									qui replace `sum`prefix'hat`g'' = `sum`prefix'hat`g'' + ``prefix'hat`index''
+								}
+								
+								gen `mean`prefix'hat`g'' = `sum`prefix'hat`g''/`ngroup`g''
+								
+								//Generate R 
+								gen `mean`prefix'rrhat`g'' = `mean`prefix'hat`g'' / `mean`prefix'hat`baselevel''
+								gen `mean`prefix'orhat`g'' = (`mean`prefix'hat`g''/(1 - `mean`prefix'hat`g'')) / (`mean`prefix'hat`baselevel''/(1 - `mean`prefix'hat`baselevel''))
+								gen `mean`prefix'lorhat`g'' = ln(`mean`prefix'orhat`g'')
+
+								//Obtain mean of modelled estimates
+								sum `modelp' if `vari' == `g' & `insample' == 1
+								local meanmodel`prefix'`g' = r(mean)
+								local meanmodel`prefix'rr`g' = `meanmodel`prefix'`g'' / `meanmodel`prefix'`baselevel''
+								local meanmodel`prefix'or`g' = (`meanmodel`prefix'`g''/(1 - `meanmodel`prefix'`g'')) / (`meanmodel`prefix'`baselevel''/(1 - `meanmodel`prefix'`baselevel''))
+								local meanmodel`prefix'lor`g' = ln((`meanmodel`prefix'`g''/(1 - `meanmodel`prefix'`g'')) / (`meanmodel`prefix'`baselevel''/(1 - `meanmodel`prefix'`baselevel'')))
+								
+								//Standard error
+								sum `mean`prefix'rrhat`g''
+								local post`prefix'rrse = r(sd)
+								
+								sum `mean`prefix'orhat`g''
+								local post`prefix'orse = r(sd)
+								
+								sum `mean`prefix'lorhat`g''
+								local post`prefix'lorse = r(sd)
+								
+								//Obtain the quantiles
+								centile `mean`prefix'rrhat`g'', centile(50 `=(100-`level')/2' `=100 - (100-`level')/2')
+								local `prefix'medianrr = r(c_1) //Median
+								local `prefix'lowerprr = r(c_2) //Lower centile
+								local `prefix'upperprr = r(c_3) //Upper centile
+								
+								centile `mean`prefix'orhat`g'', centile(50 `=(100-`level')/2' `=100 - (100-`level')/2')
+								local `prefix'medianor = r(c_1) //Median
+								local `prefix'lowerpor = r(c_2) //Lower centile
+								local `prefix'upperpor = r(c_3) //Upper centile
+								
+								centile `mean`prefix'lorhat`g'', centile(50 `=(100-`level')/2' `=100 - (100-`level')/2')
+								local `prefix'medianlor = r(c_1) //Median
+								local `prefix'lowerplor = r(c_2) //Lower centile
+								local `prefix'upperplor = r(c_3) //Upper centile
+														
+								mat `poprrouti`g'' = (`meanmodel`prefix'rr`g'', `post`prefix'rrse', ``prefix'medianrr', ``prefix'lowerprr', ``prefix'upperprr')
+								mat `poporouti`g'' = (`meanmodel`prefix'or`g'', `post`prefix'orse', ``prefix'medianor', ``prefix'lowerpor', ``prefix'upperpor')
+								mat `poplorouti`g'' = (`meanmodel`prefix'lor`g'', `post`prefix'lorse', ``prefix'medianlor', ``prefix'lowerplor', ``prefix'upperplor')
+								
+								local glab = ustrregexra("`glab'", " ", "_")
+								mat rownames `pop`prefix'rrouti`g'' = `vari':`glab'
+								mat rownames `pop`prefix'orouti`g'' = `vari':`glab'
+								mat rownames `pop`prefix'lorouti`g'' = `vari':`glab'
+							}
+							if `g' == 1 {
+								mat `pop`prefix'rrouti' = `pop`prefix'rrouti`g''
+								mat `pop`prefix'orouti' = `pop`prefix'orouti`g''
+								mat `pop`prefix'lorouti' = `pop`prefix'lorouti`g''
+							}
+							else {
+								//Stack the matrices
+								mat `pop`prefix'rrouti' = `pop`prefix'rrouti'	\  `pop`prefix'rrouti`g''
+								mat `pop`prefix'orouti' = `pop`prefix'orouti'	\  `pop`prefix'orouti`g''
+								mat `pop`prefix'lorouti' = `pop`prefix'lorouti'	\  `pop`prefix'lorouti`g''
+							}
+						}
+						//Stack the matrices
+						local ++newnrows
+						if `newnrows' == 1 {
+							mat `pop`prefix'rrout' = `pop`prefix'rrouti'
+							mat `pop`prefix'orout' = `pop`prefix'orouti'
+							mat `pop`prefix'lorout' = `pop`prefix'lorouti'
+						}
+						else {
+							mat `pop`prefix'rrout' = `pop`prefix'rrout'	\  `pop`prefix'rrouti'
+							mat `pop`prefix'orout' = `pop`prefix'orout'	\  `pop`prefix'orouti'
+							mat `pop`prefix'lorout' = `pop`prefix'lorout'	\  `pop`prefix'lorouti'
+						}
+					}
+				}
+				
+				if "`comparative'" != "" | "`cbnetwork'" != "" {
+					//Comparative R
+					local mindex 0
+					local newnrows 0
+					foreach vari of local eqnames {		
+						local ++mindex
+						local group : word `mindex' of `rnames'
+						
+						cap drop `subset'
+						if "`group'" != "Overall" {
+							cap drop `hold'
+							decode `vari', gen(`hold')
+							
+							local latentgroup = ustrregexra("`group'", "_", " ")
+							gen `subset' = 1 if `hold' == "`latentgroup'"  & `insample' == 1 & `parameter'
+						}
+						else {
+							//All
+							gen `subset' = 1  if `insample' == 1 & `parameter'
+						}
+						cap drop `subsetid'
+						egen `subsetid' = seq()	 if `subset' == 1
+						
+						count if `subset' == 1 & `idpair' == 2
+						local nsubset = r(N)
+						
+						//Compute mean of simulated values
+						cap drop `sum`prefix'rrhat' `sum`prefix'orhat' `sum`prefix'lorhat'
+						
+						gen `sum`prefix'rrhat' = 0
+						gen `sum`prefix'orhat' = 0	
+						gen `sum`prefix'lorhat' = 0
+						forvalues j=1(1)`nobs' { 
+							sum `gid' if `subsetid' == `j'
+							local index = r(min)
+							
+							sum `idpair' if `subsetid' == `j'
+							local pair = r(min)
+							
+							if `pair' == 2 {
+								qui replace `sum`prefix'rrhat' = `sum`prefix'rrhat' + ``prefix'rrhat`index''
+								qui replace `sum`prefix'orhat' = `sum`prefix'orhat' + ``prefix'orhat`index''
+								qui replace `sum`prefix'lorhat' = `sum`prefix'lorhat' + ``prefix'lorhat`index''
+							}
+						}
+						
+						//Obtain mean of modelled estimates
+						sum `modelrr' if `subset' == 1
+						local meanmodel`prefix'rr = r(mean)
+						
+						sum `modelor' if `subset' == 1
+						local meanmodel`prefix'or = r(mean)
+						
+						sum `modellor' if `subset' == 1
+						local meanmodel`prefix'lor = r(mean)
+						
+						cap drop `mean`prefix'rrhat' `mean`prefix'orhat' `mean`prefix'lorhat'
+						gen `mean`prefix'rrhat' = `sum`prefix'rrhat'/`nsubset'
+						gen `mean`prefix'orhat' = `sum`prefix'orhat'/`nsubset'
+						gen `mean`prefix'lorhat' = `sum`prefix'lorhat'/`nsubset'
+						
+						//Standard error
+						sum `mean`prefix'rrhat'	
+						local post`prefix'rrse = r(sd)
+						
+						sum `mean`prefix'orhat'	
+						local post`prefix'orse = r(sd)
+						
+						sum `mean`prefix'lorhat'	
+						local post`prefix'lorse = r(sd)
+						
+						//Obtain the quantiles
+						centile `mean`prefix'rrhat' , centile(50 `=(100-`level')/2' `=100 - (100-`level')/2')
+						local median`prefix'rr = r(c_1) //Median
+						local lowerp`prefix'rr = r(c_2) //Lower centile
+						local upperp`prefix'rr = r(c_3) //Upper centile
+						
+						centile `mean`prefix'orhat' , centile(50 `=(100-`level')/2' `=100 - (100-`level')/2')
+						local median`prefix'or = r(c_1) //Median
+						local lowerp`prefix'or = r(c_2) //Lower centile
+						local upperp`prefix'or = r(c_3) //Upper centile
+						
+						centile `mean`prefix'lorhat' , centile(50 `=(100-`level')/2' `=100 - (100-`level')/2')
+						local median`prefix'lor = r(c_1) //Median
+						local lowerp`prefix'lor = r(c_2) //Lower centile
+						local upperp`prefix'lor = r(c_3) //Upper centile
+						
+						mat `pop`prefix'rrouti' = (`meanmodel`prefix'rr', `post`prefix'rrse', `median`prefix'rr', `lowerp`prefix'rr', `upperp`prefix'rr')
+						mat `pop`prefix'orouti' = (`meanmodel`prefix'or', `post`prefix'orse', `median`prefix'or', `lowerp`prefix'or', `upperp`prefix'or')
+						mat `pop`prefix'lorouti' = (`meanmodel`prefix'lor', `post`prefix'lorse', `median`prefix'lor', `lowerp`prefix'lor', `upperp`prefix'lor')
+						mat rownames `pop`prefix'rrouti' = `vari':`group'
+						mat rownames `pop`prefix'orouti' = `vari':`group'
+						mat rownames `pop`prefix'lorouti' = `vari':`group'
+						
+						//Stack the matrices
+						local ++newnrows
+						if `newnrows' == 1 {
+							mat `pop`prefix'rrout' = `pop`prefix'rrouti'
+							mat `pop`prefix'orout' = `pop`prefix'orouti'
+							mat `pop`prefix'lorout' = `pop`prefix'lorouti'
+						}
+						else {
+							mat `pop`prefix'rrout' = `pop`prefix'rrout'	\  `pop`prefix'rrouti'
+							mat `pop`prefix'orout' = `pop`prefix'orout'	\  `pop`prefix'orouti'
+							mat `pop`prefix'lorout' = `pop`prefix'lorout'	\  `pop`prefix'lorouti'
+						}
+					}
+				}
+			}
+			mat `serow' = J(1, 5, .)
+			mat `sprow' = J(1, 5, .)
+					
+			mat rownames `serow' = "Relative Sensitivity"
+			mat rownames `sprow' = "Relative Specificity" 
+			
+			mat `poprrout' = `serow' \ `popserrout' \ `sprow' \ `popsprrout'
+			mat `poporout' = `serow' \ `popseorout' \ `sprow' \ `popsporout'
+		}
+		if "`todo'" == "smooth" {
+			replace `modeles' = `modelp' if  `insample' == 1
+			//Smooth p's
+			if "`outplot'" == "abs" {
+				//postci
+				local critvalue -invnorm((100-`level')/200)
+				if "`link'" == "loglog" {
+					local sign -
+				}
+				replace `modellci' = `invfn'(`eta' - `sign' `critvalue'*`modelse') if  `insample' == 1 //lower
+				replace `modeluci' = `invfn'(`eta' +  `sign' `critvalue'*`modelse') if  `insample' == 1 //upper
+			}
+			
+			//Smooth r's
+			if "`outplot'" == "rr" | "`outplot'" == "or" {
+				if "`outplot'" == "rr" { 
+					replace `modeles' = `modelrr' if  `insample' == 1
+				}
+				else {
+					replace `modeles' = `modelor' if  `insample' == 1
+				}
+				
+				//Do twice; 
+				local shortnames "se sp"
+				local parameters "`se' `sp'"
+				forvalues run = 1(1)2 {
+					local prefix : word `run' of `shortnames'
+					local parameter : word `run' of `parameters'
+					
+					*sum `gid' if `insample' == 1 
+					count if `insample' == 1 & `idpair' == 2 & `parameter'
+					local nstudies = r(N)
+					
+					cap drop `subsetid'
+					egen `subsetid' = seq()	if `insample' == 1 & `idpair' == 2 & `parameter'
+				
+					forvalues j=1(1)`nstudies' {
+						
+						sum `gid' if `subsetid' == `j'
+						local index = r(min)
+						
+						//Obtain the quantiles
+						if "`outplot'" == "rr" {
+							centile ``prefix'rrhat`index'', centile(50 `=(100-`level')/2' `=100 - (100-`level')/2')
+						}
+						else {
+							centile ``prefix'orhat`index'', centile(50 `=(100-`level')/2' `=100 - (100-`level')/2')
+						}
+						local median = r(c_1) //Median
+						local lowerp = r(c_2) //Lower centile
+						local upperp = r(c_3) //Upper centile
+						
+						replace `modellci' = `lowerp' if (`gid' == `index') & (`idpair' == 2) &  `insample' == 1 & `parameter'
+						replace `modeluci' = `upperp' if (`gid' == `index') & (`idpair' == 2) &  `insample' == 1 & `parameter'
+					}
+				}				
+			}			
+		}
+		
+		drop if `present' != 1
+	}
+		
+	//Return matrices
+	if "`todo'" =="p" {
+		mat colnames `popabsoutse' = Mean SE Median Lower Upper
+		mat colnames `popabsoutsp' = Mean SE Median Lower Upper
+		mat colnames `popabsout' = Mean SE Median Lower Upper
+		
+		return matrix outmatrixse = `popabsoutse'
+		return matrix outmatrixsp = `popabsoutsp'
+		return matrix outmatrix = `popabsout'
+	}
+	if "`todo'" == "r" {
+		mat colnames `poprrout' = Mean SE Median Lower Upper
+		mat colnames `poporout' = Mean SE Median Lower Upper
+		mat colnames `popserrout' = Mean SE Median Lower Upper
+		mat colnames `popseorout' = Mean SE Median Lower Upper
+		mat colnames `popselorout' = Mean SE Median Lower Upper
+		
+		mat colnames `popsprrout' = Mean SE Median Lower Upper
+		mat colnames `popsporout' = Mean SE Median Lower Upper
+		mat colnames `popsplorout' = Mean SE Median Lower Upper
+		
+		return matrix oroutmatrix = `poporout'
+		return matrix rroutmatrix = `poprrout'
+		return matrix rroutmatrixse = `popserrout'
+		return matrix oroutmatrixse = `popseorout'
+		return matrix loroutmatrixse = `popselorout'
+		
+		return matrix rroutmatrixsp = `popsprrout'
+		return matrix oroutmatrixsp = `popsporout'
+		return matrix loroutmatrixsp = `popsplorout'
+	}
+
+end
