@@ -47,7 +47,7 @@ program define example_two_one
 	metadta tp fp fn tn test, 
 		studyid(studyid)  comparative sumtable(none) smooth gof
 		soptions(xtitle("False positive rate") col(red blue)) 	
-		foptions(outplot(abs) texts(2) xlabel(0, 0.5, 1) ysize(10) xsize(20) astext(60)) 
+		foptions(texts(2) xlabel(0, 0.5, 1) ysize(10) xsize(20) astext(60)) 
 	;
 	#delimit cr
 	restore
@@ -140,7 +140,7 @@ program define example_three_two
 	restore
 end
 
-program define example_three_two
+program define example_three_three
 	preserve
 	di _n
 	use "http://fmwww.bc.edu/repec/bocode/c/clinself.dta", clear
@@ -162,7 +162,7 @@ program define example_three_two
 	restore
 end
 
-program define example_five
+program define example_four
 	preserve
 	di _n
 	use "http://fmwww.bc.edu/repec/bocode/p/pairedta.dta", clear
@@ -187,7 +187,7 @@ program define example_five
 	restore
 end
 
-program define example_six
+program define example_five
 
 	preserve
 	di _n
