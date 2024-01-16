@@ -43,7 +43,7 @@ computed due to insufficient data i.e when there are less than {cmd:3} or whenev
 {pstd}
 Four different types of analysis can be performed.{p_end}
 {pstd}
-1. The {cmd:basic} analysis requires data from independent studies where each row contains data from seperate studies.{p_end}
+1. The {cmd:general} analysis requires data from independent studies where each row contains data from seperate studies.{p_end}
 {pstd}
 2. {cmd:Comparative} analysis where each studies each study contributes two rows to the dataset; one for each test. The two tests are similar in all studies.{p_end}
 {pstd}
@@ -53,9 +53,8 @@ Four different types of analysis can be performed.{p_end}
 
 {pstd}
 The model parameters are further processed and results presented in tables, forest plot and/or SROC plot. After a comparative meta-analysis or contrast-based network meta-analysis, the study-specific relative sensitivity and specificity can be tabulated and/or plotted. 
-
-{pstd}
-When there are no covariates, heterogeneity is also quantified using the I-squared measure({help metapreg##ZD2014:Zhou and Dendukuri 2014}).
+The relative value (weights) of the information provided by each data point (study) is retrieved from the maximized log-likelihood which contains all current information about the model parameter estimates from all the data points (studies).
+After fitting a random-effects, the posterior distributions are simulated to propagate uncertainity about the estimates({help metadta##GH2007:Gelman and Hill 2006}). When there are no covariates, heterogeneity is also quantified using the I-squared measure({help metadta##ZD2014:Zhou and Dendukuri 2014}).
 
 {synoptline}
 {pstd}
@@ -91,20 +90,22 @@ covariate information; default is {cmd:sesp}{p_end}
 {synopt :{opth label:(varname:[namevar=varname], [yearvar=varname])}}specifies that date be labelled by its name and/or year{p_end}
 {synopt :{opt noove:rall}}suppress the display of overall estimates in the itable and fplot{p_end}
 {synopt :{opt nosubg:roup}}suppress the display of the group estimates in the itable and fplot{p_end}
+{synopt : {opt nowt:}}suppresses the display of the weights from the tables and forest plots.{p_end}
 {synopt :{opt summ:aryonly}}suppress the individual studies in the itable and fplot{p_end}
 {synopt :{opth down:load(path)}}specify the location where a copy of data used to plot the forest plot should be stored {p_end}
 {synopt :{opt dp:(#)}} set decimal points to display; default is {cmd: 3}{p_end}
 {synopt :{opth l:evel(level)}}set confidence level; default is {cmd: level(95)}{p_end}
 {synopt :{opt pow:er(#)}}set the exponentiating power; default is {cmd: 0}{p_end}
 {synopt :{opth sort:by(varlist)}}sort the appearance of studies in the itable and fplot based on the variables in {help varlist}{p_end}
-{synopt :{opth ci:method(metapreg##citype:citype)}}specifies how the confidence intervals 
+{synopt :{opth ci:method(metadta##citype:citype)}}specifies how the confidence intervals 
 for the individuals study proportions are computed; default is {cmd:citype(exact)} for proportions. 
 For relative ratios, the score/Koopman CI are computed{p_end}
 
+
 {dlgtab:Tables}
 {synopt :{opt noit:able}}suppress display of the table containing the studies{p_end}
-{synopt :{opt sum:table(logodds|abs|rr|all)}}which summary tables to present from the model estimates. Default is none of the tables. {p_end}
-
+{synopt :{opt sum:table(none|abs|rr|or|all)}}which summary tables to present from the model estimates. Default is none of the tables. {p_end}
+{synopt :{opt gof}}request to display the Akaike information and Bayesian information criterion{p_end}
 {synoptline}
 
 {marker foptions_table}{...}
@@ -115,7 +116,7 @@ For relative ratios, the score/Koopman CI are computed{p_end}
 The points in the list {cmd:must} be comma separated.{p_end}
 {synopt :{opt xt:ick(list)}}adds the listed tick marks to the x-axis. The points in the list {cmd:must} be comma separated.{p_end}
 {synopt :{opt plots:tat(label)}}specifies comma seperated labels(name) for proportions/relative ratios in the forest plot{p_end}
-{synopt :{opth outp:lot(abs|rr)}}specifies to plot absolute or relative measures when studies are comparative; default is {cmd:outplot(abs)}{p_end}
+{synopt :{opth outp:lot(abs|rr|or)}}specifies to plot absolute or relative measures when studies are comparative; default is {cmd:outplot(abs)}{p_end}
 {synopt :{opt tex:ts(#)}}increases or decreases the text size of the label. Default value is 1{p_end}
 {synopt :{opth lc:ols(varlist)}}specifies additional columns to the left of the plot{p_end}
 {synopt :{opt double:}}allows more white space in the fplot by running the text on the left i.e {cmd:lcols(varlist)} over two lines in the fplot{p_end}
@@ -127,7 +128,8 @@ The points in the list {cmd:must} be comma separated.{p_end}
 {synopt :{opth cio:pt(scatter##connect_options:connect_options)}}controls the appearance of confidence intervals for studies{p_end}
 {synopt :{opt subl:ine}}displays the line with group estimates{p_end}
 {synopt :{opt noovl:ine}}suppress the overall line; by default the overall line is displayed{p_end}
-{synopt :{opt nost:at}}suppress the text with estimates and confidence intervals; by default the text is displayed{p_end}
+{synopt :{opt nost:ats}}suppress the text with estimates and confidence intervals; by default the text is displayed{p_end}
+{synopt :{opt nob:ox}}suppresses the display of weight boxes; by default the boxes are displayed{p_end}
 {synopt :{opt grid}}place grid lines between the studies; by default the grid lines are suppressed{p_end}
 {synopt :{opt log:scale}}requests the plot to be in the (natural)log scale{p_end}
 {synopt :{opth gra:phsave(filename)}}save the plot in/as {it:filename}{p_end}
@@ -205,7 +207,7 @@ estimated{p_end}
 {marker vartype}{...}
 {synopthdr :wcov}
 {synoptline}
-{synopt :{opt ind:ependent}}different variance parameters for logit sensitivity and logit specificity random-effects in the nested factor, the default{p_end}
+{synopt :{opt ind:ependent}}different variance parameters for logit sensitivity and logit specificity random-effects in the nested factor; the default{p_end}
 {synopt :{opt id:entity}}equal variances for logit sensitivity and logit specificity random-effects in the nested factor {p_end}
 {synopt :{opt zero}}zero variance for logit sensitivity and logit specificity in the nested factor i.e assume homogeneity {p_end}
 {synoptline}
@@ -213,11 +215,25 @@ estimated{p_end}
 {marker citype}{...}
 {synopthdr :citype}
 {synoptline}
-{synopt :{opt exact}}calculate exact confidence intervals; the default{p_end}
+{dlgtab:abs}
+{synopt :{opt exact}}calculate exact confidence intervals; the default. Also known in the literature
+as Clopper-Pearson [{help metadta##CP1934:1934}] binomial confidence intervals.{p_end}
 {synopt :{opt wald}}calculate Wald confidence intervals{p_end}
 {synopt :{opt wilson}}calculate Wilson confidence intervals{p_end}
 {synopt :{opt agres:ti}}calculate Agresti-Coull confidence intervals{p_end}
 {synopt :{opt jeff:reys}}calculate Jeffreys confidence intervals{p_end}
+
+{dlgtab:rr}
+
+{synopt :{opt koopman}}computes Koopman asymptotic score confidence intervals; the {cmd:default} for comparative/paired studies. These intervals have better coverage even for small sample size{p_end}
+{synopt :{opt cml}}computes constrained maximum likelihood (cml) confidence intervals; the {cmd:default} for matched data. These intervals have better coverage even for small sample size{p_end}
+
+{dlgtab:or}
+
+{synopt :{opt e:xact}}computes the exact CI of the study odds ratio by inverting two one-sided Fishers exact tests. These {cmd:default} intervals are overly convservative. {p_end}
+{synopt :{opt w:oolf}}use Woolf approximation to calculate CI of the study odds ratio.{p_end}
+{synopt :{opt co:rnfield}} use Cornfield approximation to calculate CI of the study odds ratio. These intervals have better coverage even for small sample size{p_end}
+
 
 {p2colreset}{...}
 
@@ -312,7 +328,7 @@ Examples, {cmd: model(random, intpoint(9))} to increase the integration points,
 {cmd: model(random, technique(bfgs))} to specify Stata's BFGS maximiztion algorithm.
 
 {phang}
-{opt cov([bcov][, wvoc])} specifies the structure of the covariance matrix for the random-effects. 
+{opt cov([bcov][, wcov])} specifies the structure of the covariance matrix for the random-effects. 
 {it:bcov} controls the stucture of the random effects on the first level of hierarchy and is one of the following:
 {cmd:independent}, {cmd:exchangeable}, {cmd:identity}, or {cmd:unstructured}.
 
@@ -334,7 +350,7 @@ The identity covariance matrix has 1 parameter.
 distinct. The unstructured covariance matrix has 3 unique parameters. The default is {cmd:covariance(unstructured)}.
 
 {phang2}
-{it:wvoc} controls the stucture of the random effects on the second level of hierarchy and is one of the following: {cmd:independent}, {cmd:identity}, or {cmd:zero}.
+{it:wcov} controls the stucture of the random effects on the second level of hierarchy and is one of the following: {cmd:independent}, {cmd:identity}, or {cmd:zero}.
 
 {phang}
 {cmd: cveffect(effect)} specify which latent outcome is to be affected by 
@@ -409,27 +425,22 @@ This option is not the same as the Stata {help by} prefix which repeates the ana
 {dlgtab:Tables}
 
 {phang}
-{cmd: sumtable(none|logodds|abs|rr|all)}} specifies which summary margins tables to present from the logistic regression model estimates. 
+{cmd: sumtable(none|abs|rr|or|all)} specifies which summary margins tables to present from the logistic regression model estimates. 
 {it:parameter} can be one of the following:
-{cmd: logodds}, {cmd: abs}, {cmd: rr}, {cmd: all} or a list eg {cmd: logodds abs rr}. By default none of the tables is displayed. 
-The estimates are obtained using {help margins} which calculates predictions from a fitted model at fixed values of some covariates
+ {cmd: abs}, {cmd: rr}, {cmd: or}, {cmd: all} or a list eg {cmd: abs rr}. By default none of the tables is displayed. 
+The conditional estimates are obtained using {help margins} which calculates predictions from a fitted model at fixed values of some covariates
 and averaging or otherwise integrating over the remaining covariates. The tables present the parameter estimates, their standard-errors,
-the z-statistic, and a confidence interval.
+the z-statistic, and a confidence interval. The population-averaged summaries ( the median and percentiles) are obtained from the simulations of the posterior distributions. 
 
 {phang2}
-{cmd: sumtable(logodds)}} requests the marginal {cmd:log-odds} for each class of the categorical variable, and the log-odds 
-at the mean of continous varibles. When there are interaction, the log-odds are computed for the each combination of the 
-variable of interest and the confounding factor.
-
-{phang2}
-{cmd: sumtable(abs)}} requests the marginal {cmd:proportions} i.e {absolute} estimates for each class of the categorical variable, and the log-odds 
+{cmd: sumtable(abs)} requests the marginal {cmd:proportions} i.e {absolute} estimates for each class of the categorical variable, and the log-odds 
 at the mean of continous varibles. When there are interaction, the proportions are computed for the each combination of the 
 variable of interest and the confounding factor. The standard-errors, Z-statistic and p-value are in the log-odds scale.
 
 {phang2}
-{cmd: sumtable(rr)}} requests the marginal {cmd:r}elative {cmd:r}atio estimates. When studies are not comparative, the ratio are computed using the first class in 
+{cmd: sumtable(rr)} and {cmd: sumtable(or)} requests the marginal {cmd:r}elative {cmd:r}atio estimates. When studies are not comparative, the ratios are computed using the first class in 
 the categorical variable as the base. With data from comparative studies, the ratio comparing the two classes in the variable of interest is presented for each class of the 
-confounding variables.  The standard-errors, Z-statistic and p-value are in the log scale. {cmd: sumtable(rr)} requires at-least one covariate.
+confounding variables.  The standard-errors, Z-statistic and p-value are in the log scale. Both options require at-least one covariate.
 
 {phang}
 {cmd: noitable} suppress display of the table containing the studies and the summary estimates. By default, the table presented. 
@@ -473,6 +484,12 @@ _LCI		{space 9}The lower confidence limit for _ES {p_end}
 {pmore}
 _UCI		{space 9}The upper confidence limit for _ES{p_end}
 {pmore}
+_MES		{space 10}Model-based (smooth) estimate of proportion/relative ratio{p_end}
+{pmore}
+_MLCI		{space 9}The 2.5 percentile of _MES {p_end}
+{pmore}
+_MUCI		{space 9}The 97.5 percentile of _MES{p_end}
+{pmore}
 _ESAMPLE 	{space 5}Indicator variable if the study was included ({cmd:1}) or excluded({cmd:0}) in the model.{p_end}
 {pmore}
 _USE 		{space 9}Indicator variable for the role of an observation in the dataset: {cmd:-2} = labels, {cmd:0} = blanks, {cmd:1} = studies, {cmd:2} = group data, & {cmd:3} = overall data.{p_end}
@@ -481,11 +498,13 @@ _LABEL 		{space 7}Labels for each observations {p_end}
 {pmore}
 _ID			{space 10}A numeric observations ID equivalence of _LABEL{p_end}
 {pmore}
+_WT			{space 10}The relative value (weight) of the information provided in the data point{p_end}
+{pmore}
 _PARAMETER 	{space 3}Indicator variable to identify data on the sensitivity({cmd:1}) and specificity({cmd:0})
 {p_end}
 
 {phang}
-{opt dp:(#)} sets the decimal points to display in the summary tables, the itable and the forestplot; default is {cmd: 3}. {cmd:#} is an any sensible positive integer.
+{opt dp:(#)} sets the decimal points to display in the summary tables, the itable and the forestplot; default is {cmd: 2}. {cmd:#} is an any sensible positive integer.
 
 {phang}
 {cmd: level(level)} sets the confidence level. The default is {cmd: level(95)}. The set level is used in all computations for the confidence intervals, 
@@ -503,32 +522,44 @@ and the forest plot are displayed as they appear in the data editor. If there gr
 is maintained. The groups are sorted by their rank index in the data, i.e, the groups are sorted according to their appearance in the data.
 
 {phang}
-{cmd: cimethod(citype)} specifies how the binomial confidence intervals 
-for the individuals study proportions are computed. {it:citype} can be any of the following: 
-{opt exact}, {opt wald}, {opt wilson}, {opt agresti}, and {opt jeffreys}. 
+{opt cimethod(citype)} specifies how the confidence intervals of the proportions are computed
+for the individuals  studies. 
 
 {pmore}
-{cmd:cimethod(exact)} is the default and specifies exact (also known in the literature
-as Clopper-Pearson [{help metadta##CP1934:1934}]) binomial confidence intervals.
+{opt cimethod(exact)} is the default for proportions and specifies exact/Clopper-Pearson binomial confidence intervals.
+The intervals are based directly
+on the binomial distribution unlike the Wilson score or Agresti-Coull. Their actual
+coverage probability can be more than nomial value. This conservative nature
+of the interval means that they are widest, especially with 
+small sample size and/or extreme probilities.
 
 {pmore}
-{cmd:cimethod(wald)} specifies calculation of Wald confidence intervals.
+{opt cimethod(wald)} specifies the Wald confidence intervals. 
 
 {pmore}
-{cmd:cimethod(wilson)} specifies calculation of Wilson confidence intervals.
+{opt cimethod(wilson)} specifies Wilson confidence intervals. 
+Compared to the Wald confidence intervals, Wilson score intervals; 
+have the actual coverage probability close to the nominal value
+and have good properties even with small sample size and/or extreme probilities.
+However, the actual confidence level does not converge to the nominal level as {it:n}
+increases.
 
 {pmore}
-{cmd:cimethod(agresti)} specifies calculation of Agresti-Coull confidence intervals.
+{opt cimethod(agresti)} specifies the Agresti-Coull({help metapreg##AC1998:Agresti, A., and Coull, B. A. 1998}) confidence intervals
+The intervals have better coverage with extreme probabilities
+but slightly more conservation than the Wilson score intervals.
 
 {pmore}
-{cmd:cimethod(jeffreys)} specifies calculation of Jeffreys confidence intervals.
+{opt cimethod(jeffreys)} specifies the Jeffreys confidence intervals
 
 {pmore}
-See {help metadta##BCD2001:Brown, Cai, and DasGupta (2001)} for a discussion and
-comparison of the different binomial confidence intervals. 
+See {help metapreg##BCD2001:Brown, Cai, and DasGupta (2001)} and {help metapreg##Newcombe1998:Newcombe (1998)} for a discussion and
+comparison of the different binomial confidence intervals.
 
 {pmore}
-For relative ratios, the score/Koopman[{help metadta##KOOPMAN1984:1984}] CI are computed{p_end}
+With comparative and matched data, the Koopman score({help metapreg##koopman1984:Koopman (1984)}) 
+and constrained maximum likelihood(cml)({help metapreg##NB2002:Nam, and Blackwelder (2002)}) confidence intervals for relative ratios are respectively computed. 
+Alternatively the exact, woolf({help cc##W1955:Woolf (1955)})  or the confield({help cc##C1956:Cornfield (1956)}) confidence intervals for the odds ration can be requested.
 
 {dlgtab:foptions}
 {phang}
@@ -547,13 +578,16 @@ For relative ratios, the score/Koopman[{help metadta##KOOPMAN1984:1984}] CI are 
 {opt plots:tat(label)} specifies comma-seperated labels(name) for proportions/relative ratios in the forest plot. E.g plotstat(Sensitivity, Specificity){p_end} 
 
 {phang}
-{cmd: outplot(abs|rr)} specifies to plot absolute or relative measures when data is {cmd:comparative}; default is {cmd:outplot(abs)}. 
+{cmd: outplot(abs|rr|or)} specifies to plot absolute or relative measures when data is {cmd:comparative}; default is {cmd:outplot(abs)}. 
 
 {pmore}
 {cmd: outplot(abs)}  specifies to plot the absolute measures, i.e the sensitivity and specificity.
 
 {pmore}
-{cmd:outplot(rr)} specifies to plot the relative measures. 
+{cmd:outplot(rr)} specifies to plot the relative sensitivity and relative specificity. 
+
+{pmore}
+{cmd:outplot(or)} specifies to plot the sensitivity odds ratio and specificity odds ratio.
 
 {phang}
 {opt tex:ts(#)}increases or decreases the text size of the label. Default value is 1{p_end}
@@ -694,33 +728,24 @@ a systematical review of sensitivity and specificity of cytology and other marke
 primary diagnosis of bladder cancer {help metadta##Glass200:Glas et al (2003)}.   
 
 {pmore}
-The look of the sroc and forest plot is enhanced via {cmd:soptions(...)} and {cmd:foptions(...)}.
+The look of the sroc and forest plot is enhanced via {cmd:soptions(...)} and {cmd:foptions(...)}. The otpion {cmd:smooth} requests for the display of the model-based (smooth) study-specific estimates. 
+This is useful in checking outlying studies and the fit of the model to the data by assessing the (in)consistency between the observed and the model-based estimates. 
 
 {pmore2}
 {stata `"use "http://fmwww.bc.edu/repec/bocode/t/telomerase.dta""':. use "http://fmwww.bc.edu/repec/bocode/t/telomerase.dta"}
 {p_end}
 
 {pmore2}
-{cmd:. metadta tp fp fn tn,												///} 
+{cmd:. metadta tp fp fn tn, ///} 
 {p_end}
 {pmore3}
-{cmd:studyid(study) model(random) dp(2) sumtable(all)					///}   
+{cmd:studyid(study) sumtable(all) {ul:smooth} 	///} 
 {p_end}
 {pmore3}
-{cmd:soptions(xtitle("False positive rate") xlabel(0(0.2)1) xscale(range(0 1))					///} 
+{cmd:soptions(xtitle("False positive rate")) ///} 
 {p_end}
 {pmore3}
-{cmd:ytitle("Sensitivity") yscale(range(0 1)) ylabel(0(0.2)1, nogrid) 							///} 
-{p_end}
-{pmore3}
-{cmd:graphregion(color(white)) plotregion(margin(medium)) xsize(15) ysize(15))									///} 
-{p_end}
-{pmore3}
-{cmd:foptions(graphregion(color(white)) texts(3) xlabel(0, 0.5, 1) 									///} 
-{p_end}
-{pmore3}
-{cmd:diamopt(color(red)) pointopt(msymbol(s)msize(1)) olineopt(color(red) lpattern(dash)))}
-{p_end}
+{cmd:foptions(texts(2) xlabel(0, 0.5, 1) ysize(10) xsize(20) astext(60)) }
 
 {pmore2} 
 {it:({stata "metadta_examples example_one":click to run})}
@@ -744,29 +769,16 @@ via {cmd:soptions(...)} and {cmd:foptions(...)}.
 {p_end}
 
 {pmore2}
-{cmd:. metadta tp fp fn tn test, 									///}  
+{cmd:. metadta tp fp fn tn test, 	///} 
 {p_end}
 {pmore3}
-{cmd:studyid(studyid) model(random) comparative sumtable(all)  									///} 
+{cmd:studyid(studyid)  comparative sumtable(none) smooth gof	///} 
 {p_end}
 {pmore3}
-{cmd:soptions(xtitle("False positive rate") xlabel(0(0.2)1) xscale(range(0 1)) 									///} 
+{cmd:soptions(xtitle("False positive rate") col(red blue)) 		///} 
 {p_end}
 {pmore3}
-{cmd:ytitle("Sensitivity") yscale(range(0 1)) ylabel(0(0.2)1, nogrid)  									///} 
-{p_end}
-{pmore3}
-{cmd:legend(order(1 "Repeat Cytology" 2 "HC2") ring(0) bplacement(6)) 									///} 
-{p_end}
-{pmore3}
-{cmd:graphregion(color(white)) plotregion(margin(zero)) col(red blue)) 									///}  	
-{p_end}
-{pmore3}
-{cmd:foptions(graphregion(color(white)) outplot(abs) texts(2) xlabel(0, 1, 1) 									///}  
-{p_end}
-{pmore3}
-{cmd:diamopt(color(red))  pointopt(msymbol(s)msize(1)) olineopt(color(red) lpattern(dash)))} 
-{p_end}
+{cmd:foptions(texts(2) xlabel(0, 0.5, 1) ysize(10) xsize(20) astext(60))}
 
 {pmore2} 
 {it:({stata "metadta_examples example_two_one":click to run})}
@@ -776,7 +788,7 @@ via {cmd:soptions(...)} and {cmd:foptions(...)}.
 {cmd :2.2 Metaregression - Comparative studies - 1 Covariate - RR}
 
 {pmore}
-This example extends {help metadta##example_two_one:Example 2.1} by presenting the relative summary measures instead of the absolute measures.  
+This example extends {help metadta##example_two_one:Example 2.1} by presenting the relative sensitivity and relative specificity in the {cmd:logscale} instead of the absolute measures.  
 
 {pmore2}
 {stata `"use "http://fmwww.bc.edu/repec/bocode/a/ascus.dta""':. use "http://fmwww.bc.edu/repec/bocode/a/ascus.dta"}
@@ -786,22 +798,43 @@ This example extends {help metadta##example_two_one:Example 2.1} by presenting t
 {cmd:. metadta tp fp fn tn test, 									///}  
 {p_end}
 {pmore3}
-{cmd:studyid(studyid) model(random) comparative sumtable(all)  									///} 
+{cmd:studyid(studyid) comparative sumtable(all) smooth gof									///} 
 {p_end}
 {pmore3}
-{cmd:foptions(graphregion(color(white)) outplot(rr) texts(2) xlabel(0, 1, 1) 									///}  
-{p_end}
-{pmore3}
-{cmd:diamopt(color(red)) pointopt(msymbol(s)msize(1)) olineopt(color(red) lpattern(dash)))} 
+{cmd:foptions({ul:logscale outplot(rr)} texts(2) xlabel(0.5, 1, 2)  ysize(10) xsize(20) astext(60)) }								 
 {p_end}
 
 {pmore2} 
 {it:({stata "metadta_examples example_two_two":click to run})}
 
-
-{marker example_three}{...}
+{marker example_two_two}{...}
 {pstd}
-{cmd :3. Metaregression - Comparative studies - 2 Covariates} 
+{cmd :2.3 Metaregression - Comparative studies - 1 Covariate - RR - varying test effects between studies}
+
+{pmore}
+This example extends {help metadta##example_two_one:Example 2.1} by allowing the covariate effect for test to vary between the studies.  
+
+{pmore2}
+{stata `"use "http://fmwww.bc.edu/repec/bocode/a/ascus.dta""':. use "http://fmwww.bc.edu/repec/bocode/a/ascus.dta"}
+{p_end}
+
+{pmore2}
+{cmd:. metadta tp fp fn tn test, 									///}  
+{p_end}
+{pmore3}
+{cmd:studyid(studyid) comparative model(random, laplace) {ul:cov(unstructured, independent)} sumtable(all) smooth gof									///} 
+{p_end}
+{pmore3}
+{cmd:foptions(logscale outplot(rr) texts(2) xlabel(0.5, 1, 2)  ysize(10) xsize(20) astext(60))  }								 
+{p_end}
+
+{pmore2} 
+{it:({stata "metadta_examples example_two_three":click to run})}
+
+
+{marker example_three_one}{...}
+{pstd}
+{cmd :3.1. Metaregression - Comparative studies - 2 Covariates} 
 
 {pmore}
 This example demonstrates how to examine (dis-)similarity of relative sensitivity and specificity across the different clinical setup. 
@@ -817,86 +850,87 @@ interaction terms happens automatically.
 
 {pmore}
 With the option {cmd:sumtable(rr)} only the summary relative ratios are presented. The option {cmd:noitable} also suppresses 
-the table with individual studies.
-
-{pmore}
-The look of the sroc and forest plot is enhanced via {cmd:soptions(...)} and {cmd:foptions(...)}. With more than one covariate or when the focus is on RR, 
-the sroc plot is not presented.
+the table with individual studies. To save time, we instruct the procedure not to fit other reduced model with the option {cmd:nomc}.
 
 {pmore2}
 {stata `"use "http://fmwww.bc.edu/repec/bocode/c/clinself.dta""':. use "http://fmwww.bc.edu/repec/bocode/c/clinself.dta"}
 {p_end}
 
-{pmore2}
-{cmd:. metadta tp fp fn tn sample Setting,  									///}
-{p_end}
-{pmore3}
-{cmd:studyid(study) interaction(sesp) model(random)  									///}
-{p_end}
-{pmore3}
-{cmd:summaryonly comparative sumtable(rr) noitable  									///}
-{p_end}
-{pmore3}
-{cmd:soptions(xtitle("False positive rate") xlabel(0(0.2)1) xscale(range(0 1)) 									///}
-{p_end}
-{pmore3}
-{cmd:ytitle("Sensitivity") yscale(range(0 1)) ylabel(0(0.2)1, nogrid)  									///}
-{p_end}
-{pmore3}
-{cmd:graphregion(color(white)) plotregion(margin(zero)))  									///}
-{p_end}
-{pmore3}
-{cmd:foptions(diamopt(color(red)) olineopt(color(red) lpattern(dash)) 									///} 
-{p_end}
-{pmore3}
-{cmd:outplot(RR) graphregion(color(white)) texts(2) xlabel(0.7, 1, 1.2))} 
-{p_end}	
 
+{pmore2}
+{cmd:.metadta tp fp fn tn sample Setting, {ul:nomc} gof 	///}
+{p_end}
+{pmore3}
+{cmd:studyid(study) {ul:interaction(sesp)} 	///}
+{p_end}
+{pmore3}
+{cmd:summaryonly comparative sumtable(rr) noitable 	///}
+{p_end}
+{pmore3}
+{cmd:foptions(outplot(rr) texts(2) xlabel(0.6, 1) astext(60))} 
+{p_end}
+		
 {pmore2} 
-{it:({stata "metadta_examples example_three":click to run})}
+{it:({stata "metadta_examples example_three_one":click to run})}
 			
-{marker example_four}{...}
+{marker example_three_two}{...}
 {pstd}
-{cmd :4. Metaregression - Comparative - 3 Covariates}
+{cmd :3.2. Metaregression - Comparative - 3 Covariates}
 
 {pmore}
-We extend {help metadta##example_three:Example 3} above and examine differences in relative sensitivity and specificity by test assay while 
-accounting for the clinical setup. The look of the sroc and forest plot is enhanced via {cmd:soptions(...)} and {cmd:foptions(...)}.
+We extend {help metadta##example_three_one:Example 3.1} above and examine differences in relative sensitivity and specificity by test assay while 
+accounting for the clinical setup. 
+
+{pmore2}
+{stata `"use "http://fmwww.bc.edu/repec/bocode/c/clinself.dta""':. use "http://fmwww.bc.edu/repec/bocode/c/clinself.dta"}
+{p_end}
+
+
+{pmore2}
+{cmd:. metadta tp fp fn tn sample Setting TA, nomc smooth gof	///}  
+{p_end}
+{pmore3}
+{cmd:studyid(study) interaction(sesp) 	///}  
+{p_end}
+{pmore3}
+{cmd:model(random, laplace) comparative noitable sumtable(rr)	///}  
+{p_end}
+{pmore3}
+{cmd:foptions(logscale outplot(rr) grid  texts(1.5) xlabel(0.5, 1, 2) ysize(10) xsize(20) astext(60)) }
+{p_end}
+
+{pmore2} 
+{it:({stata "metadta_examples example_three_two":click to run})}
+
+{marker example_three_three}{...}
+{pstd}
+{cmd :3.3. Metaregression - Comparative - 3 Covariates}
+We simplify {help metadta##example_three_one:Example 3.1} by allowing the sample group effect to vary between the studies. 
+The resulting fit is better (lower BIC and more consistency between the observed and model based estimates in the forest plot.)
 
 {pmore2}
 {stata `"use "http://fmwww.bc.edu/repec/bocode/c/clinself.dta""':. use "http://fmwww.bc.edu/repec/bocode/c/clinself.dta"}
 {p_end}
 
 {pmore2}
-{cmd:. metadta tp fp fn tn sample Setting TA,									///} 
+{cmd:. metadta tp fp fn tn sample, nomc smooth gof progress	///}  
 {p_end}
 {pmore3}
-{cmd:studyid(study) interaction(sesp) model(random) cov(unstructured)									///}  
+{cmd:studyid(study) cov(unstructured, independent) 	///}  
 {p_end}
 {pmore3}
-{cmd:comparative noitable sumtable(rr)									///}
+{cmd:comparative noitable sumtable(rr)	///}  
 {p_end}
 {pmore3}
-{cmd:soptions(xtitle("False positive rate") xlabel(0(0.2)1) xscale(range(0 1))									///}
-{p_end}
-{pmore3}
-{cmd:ytitle("Sensitivity") yscale(range(0 1)) ylabel(0(0.2)1, nogrid) 									///}
-{p_end}
-{pmore3}
-{cmd:graphregion(color(white)) plotregion(margin(zero)))									///} 
-{p_end}
-{pmore3}
-{cmd:foptions(outplot(rr) grid graphregion(color(white)) texts(1.5) xlabel(0.7, 1, 1.3)									///} 
-{p_end}
-{pmore3}
-{cmd:arrowopt(msize(1)) diamopt(color(red)) olineopt(color(red) lpattern(dash)))} 
+{cmd:foptions(logscale outplot(rr) grid  texts(1.5) xlabel(0.5, 1, 2) ysize(10) xsize(20) astext(60))} 
 {p_end}
 
 {pmore2} 
-{it:({stata "metadta_examples example_four":click to run})}
+{it:({stata "metadta_examples example_three_three":click to run})}
+
 
 {pstd}
-{cmd :5. Metaregression - contrast-based network meta-analysis - RR}
+{cmd :4. Metaregression - contrast-based network meta-analysis - RR}
 
 {pmore}
 Each row in the dataset is of the form {cmd: tp1 fp1 fn1 tn1 tp2 fp2 fn2 tn2 index comparator}. The data should be a from a 2x2 table as displayed below;
@@ -948,112 +982,95 @@ Negative{space 3} {c |} {space 2} fn2 {space 7}	tn2 {space 2} {c |}
 {p_end}
 
 {pmore2}
-{cmd:. metadta tp1 fp1 fn1 tn1 tp2 fp2 fn2 tn2 hpv1 hpv2,									///} 
+{cmd:. metadta tp1 fp1 fn1 tn1 tp2 fp2 fn2 tn2 hpv1 hpv2, smooth gof  progress  ///}
 {p_end}
-{pmore3}
-{cmd:studyid(study) model(random) cov(, zero)									///}  
+{pmore3} 
+{cmd:studyid(study) model(random) cov(, independent) ///}
 {p_end}
-{pmore3}
-{cmd:cbnetwork sumtable(rr)									///}
+{pmore3} 
+{cmd:cbnetwork sumtable(rr)  ///}
 {p_end}
-{pmore3}
-{cmd:foptions(outplot(rr) grid graphregion(color(white)) texts(1.85)									///} 
+{pmore3} 
+{cmd:foptions(outplot(rr) grid  texts(1.85) ///}
 {p_end}
-{pmore3}
-{cmd:xlabel(0.75, 0.90, 1, 1.11, 1.33) logscale lcols(hpv2 setting)  astext(70)									///} 
-{p_end}
-{pmore3}
-{cmd:arrowopt(msize(1)) pointopt(msymbol(s)msize(1)) diamopt(color(red)) olineopt(color(red) lpattern(dash)))} 
+{pmore3} 
+{cmd:xlabel(0.75, 0.90, 1, 1.11, 1.33) logscale lcols(hpv2 setting)  astext(70) ysize(10) xsize(20))} 	
 {p_end}
 
 {pmore2} 
-{it:({stata "metadta_examples example_five":click to run})}
+{it:({stata "metadta_examples example_four":click to run})}
 
 
 {pstd}
-{cmd :6. Metaregression - arm-based network meta-analysis - RR}
+{cmd :5. Metaregression - arm-based network meta-analysis - RR}
 
 {pmore2}
 {stata `"use "http://fmwww.bc.edu/repec/bocode/n/network.dta""':. use "http://fmwww.bc.edu/repec/bocode/n/network.dta"}
 {p_end}
 
 {pmore2}
-{cmd:. metadta  tp fp fn tn test ,  ///}
+{cmd:. metadta  tp fp fn tn test ,  smooth gof   ///}
 {p_end}
 {pmore3} 
-{cmd:studyid(study) model(random, laplace) ///}
+{cmd:studyid(study)   ///}
 {p_end}
-{pmore3}
-{cmd:abnetwork ref(HC2) sumtable(all) ///}
+{pmore3} 
+{cmd:abnetwork ref(HC2) sumtable(all)  ///}
 {p_end}
-{pmore3}
-{cmd:foptions(outplot(rr) graphregion(color(white)) texts(1.75) ///}
+{pmore3} 
+{cmd:foptions(outplot(rr) texts(1.75) ///}
 {p_end}
-{pmore3}
-{cmd:xlabel(0.80, 0.90, 1, 1.11, 2) logscale astext(70) ///}
-{p_end}
-{pmore3}
-{cmd:arrowopt(msize(1)) pointopt(msymbol(s)msize(.5)) ///}
-{p_end}
-{pmore3}
-{cmd:diamopt(color(red)) olineopt(color(red) lpattern(dash)))}
+{pmore3} 
+{cmd:xlabel(0.80, 0.90, 1, 1.11, 2) logscale astext(70) ysize(10) xsize(20))}
 {p_end}
 
 {pmore2} 
-{it:({stata "metadta_examples example_six":click to run})}
+{it:({stata "metadta_examples example_five":click to run})}
 
 
 {marker results}{...}
 {title:Stored results}
 
 {pstd}
-{cmd:metadta} stores the following in {cmd:e()}:
+{cmd:metadta} stores the following matrices in {cmd:e()}:
 
 {synoptset 24 tabbed}{...}
-{p2col 5 15 19 2: Scalars}{p_end}
-{synopt:{cmd:e(cmd)}} {cmd:metadta}{p_end}
-{synopt:{cmd:e(cmdline)}} command as typed{p_end}
-{synopt:{cmd:e(i_sq)}} estimated I squared{p_end} 
-{synopt:{cmd:e(p_chi2)}} p-value for LR test comparing the fixed and random effects models{p_end}
-{synopt:{cmd:e(chi2)}} chisq. for LR test comparing the fixed and random effects models{p_end}
-{synopt:{cmd:e(df)}} degrees of freedom{p_end}
-{synopt:{cmd:e(sp_df_het)}} degrees of freedom for the LR test on significance of the covariates on specificity{p_end}
-{synopt:{cmd:e(sp_p_het)}} p-value for the LR test on significance of the covariates on specificity{p_end}
-{synopt:{cmd:e(sp_het)}} chi square statistic for the LR test on significance of the covariates on specificity{p_end}
-{synopt:{cmd:e(se_df_het)}} degrees of freedom for the LR test on significance of the covariates on sensitivity{p_end}
-{synopt:{cmd:e(se_p_het)}} p-value for the LR test on sigficance of the covariates on sensitivity{p_end}
-{synopt:{cmd:e(se_het)}} chi square statistic for the LR test on significance of the covariates on sensitivity{p_end}
-{synopt:{cmd:e(sp_p_z)}} p-value for testing if specificity = 0.5 or rel. specificity = 1 {p_end}
-{synopt:{cmd:e(sp_z)}} z-statistic for testing if specificity = 0.5 or rel. specificity = 1 {p_end}
-{synopt:{cmd:e(sp_ci_upp)}} upper confidence limit of the overall specificity estimate{p_end}
-{synopt:{cmd:e(sp_ci_low)}} lower confidence limit of the overall specificity estimate{p_end}
-{synopt:{cmd:e(sp_seES)}} standard error of the overall specificity estimate{p_end}
-{synopt:{cmd:e(sp_ES)}} overall specificity estimate (either a proportion or ratio){p_end}
-{synopt:{cmd:e(se_p_z)}} p-value for testing if sensitivity = 0.5 or rel. sensitivity = 1{p_end}
-{synopt:{cmd:e(se_z)}} z-statistic for testing if sensitivity = 0.5 or rel. sensitivity = 1 {p_end}
-{synopt:{cmd:e(se_ci_upp)}} upper confidence limit of the overall sensitivity estimate{p_end}
-{synopt:{cmd:e(se_ci_low)}} lower confidence limit of the overall sensitivity estimate{p_end}
-{synopt:{cmd:e(se_seES)}} standard error of the overall sensitivity estimate{p_end}
-{synopt:{cmd:e(se_ES)}}	overall sensitivity estimate (either a proportion or ratio){p_end}
+{synopt:{cmd:e(absoutsp)}} conditional/marginal specificity {p_end}
+{synopt:{cmd:e(absoutse)}} conditional/marginal sensitivity {p_end}
+{synopt:{cmd:e(absout)}}  conditional/marginal sensitivity and specificity{p_end}
 
-{synoptset 24 tabbed}{...}
-{p2col 5 15 19 2: Matrices}{p_end}
-{synopt:{cmd:e(sprrout)}} summary relative specificity ratios {p_end}
-{synopt:{cmd:e(serrout)}} summary relative sensitivity ratios {p_end}
-{synopt:{cmd:e(rrout)}} summary relative ratios {p_end}
-{synopt:{cmd:e(absoutsp)}} summary specificity proportions{p_end}
-{synopt:{cmd:e(absoutse)}} summary sensitivity proportions{p_end}
-{synopt:{cmd:e(absout)}}  summary proportions{p_end}
-{synopt:{cmd:e(logodds)}} summary log-odds{p_end}
+{synopt:{cmd:e(popabsoutsp)}}population-averaged specificity {p_end}
+{synopt:{cmd:e(popabsoutse)}} population-averaged sensitivity{p_end}
+{synopt:{cmd:e(popabsout)}}  population-averaged sensitivity and specificity{p_end}
+
+{synopt:{cmd:e(logodds)}} conditional/marginal log-odds{p_end}
+{synopt:{cmd:e(Vlogodds)}} variance -covariance matrix of the conditional/marginal log-odds{p_end}
 {synopt:{cmd:e(vcovar)}} variance-covariance matrix of logit sensitivity and specificity.{p_end} 
+
+{pmore}When there are categorical covariates, the following matrices are also stored 
+
+{synopt:{cmd:e(sprrout)}} conditional/marginal relative specificity ratios {p_end}
+{synopt:{cmd:e(serrout)}} conditional/marginal relative sensitivity ratios {p_end}
+{synopt:{cmd:e(rrout)}} conditional/marginal relative ratios {p_end}
+
+{synopt:{cmd:e(popsprrout)}} population-averaged relative specificity ratios {p_end}
+{synopt:{cmd:e(popserrout)}} population-averaged relative sensitivity ratios {p_end}
+{synopt:{cmd:e(poprrout)}} population-averaged relative ratios {p_end}
+
+{synopt:{cmd:e(sporout)}} conditional/marginal specificity odds ratios {p_end}
+{synopt:{cmd:e(seorout)}} conditional/marginal sensitivity odds ratios {p_end}
+{synopt:{cmd:e(orout)}} conditional/marginal odds ratios {p_end}
+
+{synopt:{cmd:e(popsporout)}} population-averaged  specificity odds ratios {p_end}
+{synopt:{cmd:e(popseorout)}} population-averaged  sensitivity odds ratios {p_end}
+{synopt:{cmd:e(poporout)}} population-averaged odds ratios {p_end}
+
+{synopt:{cmd:e(nltestrr)}}hypothesis test statistics for equality of the relative ratios{p_end}
+{synopt:{cmd:e(nltestor)}}hypothesis test statistics for equality of the odds ratios{p_end}
 
 {p2colreset}{...}
 
 {title:Technical notes}
-{cmd: by}
-{pstd}
-When prefix {cmd:by} is used, only the results from the last group or the first model will be stored respectively.
-
 {cmd: Post-estimation}
 {pstd}
 {cmd:metadta} also stores (in memory) the estimation results from the specified model in {cmd:metadta_modest}. These results can be 
@@ -1073,18 +1090,6 @@ Juliette Wytsmanstraat 14, {p_end}
 {pmore}
 Belgium.{p_end}
 
-{pmore}
-Marc Arbyn ({it:Marc.Arbyn@sciensano.be}) {p_end}
-{pmore}
-Belgian Cancer Center/Unit of Cancer Epidemiology, {p_end}
-{pmore}
-Sciensano,{p_end}
-{pmore} 
-Juliette Wytsmanstraat 14, {p_end}
-{pmore}
-B1050 Brussels, {p_end}
-{pmore}
-Belgium.{p_end}
 
 {title:References}
 
@@ -1092,6 +1097,17 @@ Belgium.{p_end}
 {phang}
 Hamza et al. 2008. The binomial distribution of meta-analysis was preferred to model within-study variability. 
 {it:Journal of Clinical Epidemiology} 61: 41-51.
+
+{marker GH2007}{...}
+{phang}
+Gelman A., and Hill J. 2006. Simulation of probability models and statistical inferences. In: Data analysis using regression and multilevel/hierachical models.
+Cambridge university press.
+
+{marker ZD2014}{...}
+{phang}
+Zhou, Y., and Dendukuri, N. 2014. Statistics for quantifying heterogeneity in univariate 
+and bivariate meta-analyses of binary data: The case of meta-analyses of diagnostic accuracy.
+{it:Statistics in Medicine} 33(16):2701-2717.
 
 {marker BCD2001}{...}
 {phang}
