@@ -916,7 +916,7 @@ The resulting fit is better (lower BIC and more consistency between the observed
 {cmd:. metadta tp fp fn tn sample, nomc smooth gof progress	///}  
 {p_end}
 {pmore3}
-{cmd:studyid(study) cov(unstructured, independent) 	///}  
+{cmd:studyid(study) {ul:cov(unstructured, independent)} 	///}  
 {p_end}
 {pmore3}
 {cmd:comparative noitable sumtable(rr)	///}  
@@ -985,10 +985,10 @@ Negative{space 3} {c |} {space 2} fn2 {space 7}	tn2 {space 2} {c |}
 {cmd:. metadta tp1 fp1 fn1 tn1 tp2 fp2 fn2 tn2 hpv1 hpv2, smooth gof  progress  ///}
 {p_end}
 {pmore3} 
-{cmd:studyid(study) model(random) cov(, independent) ///}
+{cmd:studyid(study) model(random) {ul:cov(, independent)} ///}
 {p_end}
 {pmore3} 
-{cmd:cbnetwork sumtable(rr)  ///}
+{cmd:{ul:cbnetwork} sumtable(rr)  ///}
 {p_end}
 {pmore3} 
 {cmd:foptions(outplot(rr) grid  texts(1.85) ///}
@@ -1015,7 +1015,7 @@ Negative{space 3} {c |} {space 2} fn2 {space 7}	tn2 {space 2} {c |}
 {cmd:studyid(study)   ///}
 {p_end}
 {pmore3} 
-{cmd:abnetwork ref(HC2) sumtable(all)  ///}
+{cmd:{ul:abnetwork} ref(HC2) sumtable(all)  ///}
 {p_end}
 {pmore3} 
 {cmd:foptions(outplot(rr) texts(1.75) ///}
