@@ -43,7 +43,7 @@ DATE:						DETAILS:
 							Simulate posterior distributions
 							smooth:Option to generate smooth estimates
 12.01.2023					Correction on computation of the sroc predicticn region	
-19.01.2023					option optimize - report conditional/exact if simulated summary is not sensible						
+19.01.2023					option enhance - report conditional/exact if simulated summary is not sensible						
 							
 FUTURE 						Work on the absolutes for the paired analysis; 
 							if version 16 or later; use melogit instead of meqrlogit
@@ -98,7 +98,7 @@ version 14.0
 	TRADEoff	 
 	SMooth nsims(integer 800) //max dim in stata ic
 	GOF //Goodness of fit
-	OPTIMize //Replace population-averaged estimates with Conditional/exact estimates if model has issues e.g complete seperation etc
+	ENHAnce //Replace population-averaged estimates with Conditional/exact estimates if model has issues e.g complete seperation etc
 	] ;
 	#delimit cr
 	
@@ -706,6 +706,11 @@ version 14.0
 		local groupvar  "`Index'"
 		local byvar "`Index'"
 	} 
+	
+	if "`enhance'" != "" & "`stratify'" == ""  {
+		di as error "The option enhance is only allowed in stratified analysis"
+		exit		
+	}
 	
 	*Stratify not allow in cbnetwork or abnetwork analysis
 	if "`stratify'" != "" {
@@ -2128,7 +2133,7 @@ version 14.0
 		outplot(`outplot') serrout(`serrout') popserrout(`popserrout') popseorout(`popseorout') ///
 		absoutse(`absoutse') absoutsp(`absoutsp') popabsoutse(`popabsoutse') popabsoutsp(`popabsoutsp') exactabsoutse(`exactabsoutse') exactabsoutsp(`exactabsoutsp')    ///
 		popsprrout(`popsprrout') sprrout(`sprrout') popsporout(`popsporout') `subgroup' `summaryonly' `stratify' ///
-		`overall' download(`download') indvars(`regressors') depvars(`depvars') `design' `optimize'
+		`overall' download(`download') indvars(`regressors') depvars(`depvars') `design' `enhance'
 		
 
 	//Extra tables
@@ -2831,7 +2836,7 @@ version 14.0
 	syntax varlist, [popserrout(name) popsprrout(name) serrout(name) sprrout(name) popseorout(name) popsporout(name) 
 		absoutse(name) absoutsp(name) popabsoutse(name) popabsoutsp(name) exactabsoutse(name) exactabsoutsp(name) sortby(varlist) 
 		groupvar(varname) summaryonly nooverall nosubgroup outplot(string) grptotal(name) download(string asis) 
-		indvars(varlist) depvars(varlist) comparative abnetwork general cbnetwork stratify cveffect(string) optimize ] 
+		indvars(varlist) depvars(varlist) comparative abnetwork general cbnetwork stratify cveffect(string) enhance ] 
 	;
 	#delimit cr
 	tempvar sp  expand 
@@ -2918,7 +2923,7 @@ version 14.0
 					local C_412 = `absoutse'[`=`l'*`m' + `c'', 6]
 					local C_422 = `absoutsp'[`=`l'*`m' + `c'', 6]
 					
-					if "`optimize'" != "" {
+					if "`enhance'" != "" {
 						//if simulated FE variance 5 times larger replace with exact
 						//se
 						if (`=(`S_412' - `S_312')/(`E_412' - `E_312')' > 5) & (`E_412' != .) & (`E_312' != .)  {
@@ -2981,7 +2986,7 @@ version 14.0
 						local C_412 = `serrout'[`=`l' + `c'', 6]
 						local C_422 = `sprrout'[`=`l' + `c'', 6]
 						
-						if "`optimize'" != "" {
+						if "`enhance'" != "" {
 							//if simulated more than 5 times larger, replace with conditional stats 
 							//se
 							if `=(`S_412' - `S_312')/(`C_412' - `C_312')' > 5 {
