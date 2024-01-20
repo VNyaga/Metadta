@@ -87,6 +87,8 @@ covariate information; default is {cmd:sesp}{p_end}
 
 {dlgtab:General}
 {synopt :{opt str:atify}}requests for a consolidated sub-analyses by the {opth by:(varname:byvar)} variable{p_end}
+{synopt :{opt enh:ance}}instructs the program to switch the population-averaged estimates with conditionl/exact estimates{p_end}
+
 {synopt :{opth label:(varname:[namevar=varname], [yearvar=varname])}}specifies that date be labelled by its name and/or year{p_end}
 {synopt :{opt noove:rall}}suppress the display of overall estimates in the itable and fplot{p_end}
 {synopt :{opt nosubg:roup}}suppress the display of the group estimates in the itable and fplot{p_end}
