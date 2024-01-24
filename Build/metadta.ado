@@ -1766,29 +1766,30 @@ version 14.0
 		if "`design'" == "abnetwork" {
 			di as txt "{phang}Number of `first's = " as res "`nfirst'{p_end}"
 		}
-		
-		if "`stratify'" != "" & `Nobs' > 1 { 
-			di  _n	
-			qui estimates restore metadta_modest
-			local ilab = ustrregexra("`ilab'", " ", "_")
-			local ilab = ustrregexra("`ilab'", "-", "_")
-			local ilab = ustrregexra("`ilab'", "+", "")
-			local ilab = ustrregexra("`ilab'", "/", "_")
-			local ilab = "`ilab'" + "$by_index_"
-			qui estimates store metadta_`ilab'
-			display `"{stata "estimates replay metadta_`ilab'":Click to show the raw estimates}"'
-		}
-		else {
-			if "$by_index_" !="" {
+		if `Nobs' > 1 {
+			if "`stratify'" != ""  { 
 				di  _n	
 				qui estimates restore metadta_modest
-				local ilab = "$by_index_"
+				local ilab = ustrregexra("`ilab'", " ", "_")
+				local ilab = ustrregexra("`ilab'", "-", "_")
+				local ilab = ustrregexra("`ilab'", "+", "")
+				local ilab = ustrregexra("`ilab'", "/", "_")
+				local ilab = "`ilab'" + "$by_index_"
 				qui estimates store metadta_`ilab'
 				display `"{stata "estimates replay metadta_`ilab'":Click to show the raw estimates}"'
 			}
 			else {
-				di  _n				
-				display `"{stata "estimates replay metadta_modest":Click to show the raw estimates}"'
+				if "$by_index_" !="" {
+					di  _n	
+					qui estimates restore metadta_modest
+					local ilab = "$by_index_"
+					qui estimates store metadta_`ilab'
+					display `"{stata "estimates replay metadta_`ilab'":Click to show the raw estimates}"'
+				}
+				else {
+					di  _n				
+					display `"{stata "estimates replay metadta_modest":Click to show the raw estimates}"'
+				}
 			}
 		}
 		
@@ -1805,7 +1806,7 @@ version 14.0
 				 
 				di _n
 				forvalues l=1(1)3 {
-					di as res "`textsemc`l'`t''"
+					di as res "`textspmc`l'`t''"
 				}
 			}
 		}
