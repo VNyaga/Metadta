@@ -57,7 +57,11 @@ FUTURE 						Work on the absolutes for the paired analysis;
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 cap program drop metadta
 program define metadta, eclass sortpreserve byable(recall)
-version 14.0
+	version 14.1
+	
+	if _caller() >= 16 {
+		version 16.1
+	}
 
 	#delimit ;
 	syntax varlist(min=4) [if] [in],  /*tp fp fn tn tp2 fp2 fn2 tn2  */
@@ -899,7 +903,7 @@ version 14.0
 			local getmodel = r(model)
 			
 			//Returned estimates			
-			estimates store metadta_modest
+			qui estimates store metadta_modest
 
 			cap drop _ESAMPLE
 			qui gen _ESAMPLE = e(sample)
@@ -1262,7 +1266,7 @@ version 14.0
 		
 		//if no df, get exact estimates	
 		if `Nobs' > 1 & `p' > 0 & "`getmodel'" == "fixed" {
-			estimates restore metadta_modest
+			qui estimates restore metadta_modest
 			
 			local datapoints = e(N) 
 			
@@ -2319,7 +2323,7 @@ end
 
 cap program drop index
 program define index, rclass
-version 14.0
+
 
 	syntax, source(string asis) word(string asis)
 	local nwords: word count `source'
@@ -2348,7 +2352,7 @@ end
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/	
 cap program drop my_ncod
 program define my_ncod
-version 14.1
+
 
 	syntax newvarname(gen), oldvar(varname)
 	
@@ -2408,7 +2412,7 @@ end
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 cap program drop fitmodel
 program define fitmodel, rclass
-version 14.0
+
 
 	syntax varlist [if], [ bcov(string) wcov(string) model(string) modelopts(string asis) regexpression(string) sid(varname) p(string) ///
 		nested(varname) comparative ipair(varname) level(integer 95) abnetwork cbnetwork general comparative]
@@ -2475,15 +2479,15 @@ version 14.0
 			//First trial
 			local ++try
 			#delim ;
-			capture noisily `fitcommand' (`1' `regexpression' if `touse', noc )|| 
-			  (`sid': `re', noc `cov') `nested',
+			capture noisily `fitcommand' (`1' `regexpression' if `touse', noconstant )|| 
+			  (`sid': `re', noconstant `cov') `nested',
 			  binomial(`2') `modelopts' `intopts' `iterate'  l(`level');
 			#delimit cr 
 			
 			local success = _rc
 			local converged = e(converged)
 			
-			if (strpos(`"`modelopts'"', "from") == 0) & ((`converged' == 0) | (`success' != 0))  {
+			if  ("`fitcommand'" == "meqrlogit") & (strpos(`"`modelopts'"', "from") == 0) & ((`converged' == 0) | (`success' != 0))  {
 				//First fit fixed effects model to get better starting values
 				noi di _n"*********************************** ************* ***************************************" 
 				noi di as txt _n "Just a moment - Obtaining better initial values "
@@ -2688,7 +2692,7 @@ end
 	++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 	cap program drop metadta_propci
 	program define metadta_propci
-	version 14.1
+
 
 		syntax varlist [if] [in], p(name) lowerci(name) upperci(name) [cimethod(string) level(real 95)]
 		
@@ -2717,7 +2721,7 @@ end
 	++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 	cap program drop metadta_absexactci
 	program define metadta_absexactci, rclass
-	version 14.1
+
 		syntax anything(name=data id="data"), [level(real 95)]
 		
 		tempname absexact
@@ -2764,7 +2768,7 @@ end
 	+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 	cap program drop widesetup
 	program define widesetup, rclass
-	version 14.1
+
 
 	syntax varlist, [sid(varlist) varx(varname) idpair(varname) se(varname) comparative sortby(varlist) cbnetwork rowid(varname) index(varname) assignment(varname) comparator(varname) ]
 
@@ -2831,7 +2835,7 @@ end
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 cap program drop prep4show
 program define prep4show
-version 14.0
+
 
 	#delimit ;
 	syntax varlist, [popserrout(name) popsprrout(name) serrout(name) sprrout(name) popseorout(name) popsporout(name) 
@@ -3140,7 +3144,7 @@ version 14.0
 		drop if (`use' == 1 & "`summaryonly'" != "" & `grptotal' > 1) 
 		
 		//Remove redundant info
-		replace _WT = . if `use' == 1 & (`grptotal' == 1)
+		*replace _WT = . if `use' == 1 & (`grptotal' == 1)
 		
 		//remove label if summary only
 		replace `label' = `label'[_n-1] if (`use' == 2 & "`summaryonly'" != "") 
@@ -3166,7 +3170,7 @@ end
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 cap program drop disphetab
 program define disphetab
-version 14.0
+
 #delimit ;
 syntax [, isq2(name) bshet(name) dp(integer 2) bvar(name) wvar(name)  p(integer 0)] ;
 	#delimit cr
@@ -3212,7 +3216,7 @@ end
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 cap program drop disptab
 program define disptab
-version 14.0
+
 	#delimit ;
 	syntax varlist, [nosubgroup nooverall level(integer 95) sumstatse(string asis) 
 	sumstatsp(string asis) noitable dp(integer 2) power(integer 0) isq2(name) smooth noWT
@@ -3389,7 +3393,7 @@ end
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 cap program drop printmat
 program define printmat
-	version 13.1
+
 	syntax, type(string) [cveffect(string) matrixout(name) matrixoutse(name) ///
 			matrixoutsp(name) sumstat(string) dp(integer 2) p(integer 0) power(integer 0) model(string) ///
 			matched cbnetwork abnetwork general comparative continuous  nsims(string) level(string)]
@@ -3720,7 +3724,7 @@ end
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 cap program drop longsetup
 program define longsetup
-version 14.0
+
 
 syntax varlist, rid(name) event(name) total(name) se(name) [first(name) rowid(name) assignment(name) idpair(name) cbnetwork abnetwork general comparative ]
 
@@ -3784,7 +3788,7 @@ end
 	+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 	cap program drop buildregexpr
 	program define buildregexpr, rclass
-	version 13.1
+
 		
 		syntax varlist, [cveffect(string) interaction(string) se(name) sp(name) alphasort cbnetwork abnetwork general comparative ipair(varname) baselevel(string)]
 		
@@ -3930,7 +3934,7 @@ end
 	+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/	
 	cap program drop estp
 	program define estp, rclass
-	version 14.1
+	
 		syntax [if], estimates(string) [sumstat(string) depname(string) expit se(varname) sp(varname) DP(integer 2)) ///
 			cveffect(string) interaction(string) catreg(varlist) contreg(varlist) power(integer 0) ///
 			level(integer 95) tradeoff by(varname) varx(varname) typevarx(string) regexpression(string) abnetwork cbnetwork stratify general comparative ]
@@ -4371,7 +4375,7 @@ end
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 	cap program drop estr
 	program define estr, rclass
-	version 13.1
+	
 		syntax [if], estimates(string) [catreg(varlist) varx(varname) typevarx(string) sumstat(string) comparator(varname) ///
 		se(varname) level(string) dp(string) power(string) ///
 		cveffect(string) general cbnetwork abnetwork stratify comparative by(varname) ///
@@ -4895,7 +4899,7 @@ end
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 cap program drop estcovar
 program define estcovar, rclass
-version 14.0
+
 
 	syntax, matrix(name) model(string) [ bcov(string) wcov(string) abnetwork cbnetwork comparative general ]
 	*matrix is colvector
@@ -4972,7 +4976,7 @@ end
 	++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 	cap program drop koopmanci
 	program define koopmanci
-	version 14.0
+	
 
 		syntax varlist, R(name) lowerci(name) upperci(name) [alpha(real 0.05)]
 		
@@ -5009,7 +5013,7 @@ end
 	++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 	cap program drop koopmancii
 	program define koopmancii, rclass
-	version 14.0
+	
 		syntax anything(name=data id="data"), [alpha(real 0.05)]
 		
 		local len: word count `data'
@@ -5044,7 +5048,7 @@ end
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 	capture program drop fplotcheck
 	program define fplotcheck, rclass
-	version 14.1	
+		
 	#delimit ;
 	syntax  [,
 		/*Passed from top*/
@@ -5053,6 +5057,7 @@ end
 		abnetwork
 		general
 		noWT
+		noBOx
 		/*passed via foptions*/
 		AStext(integer 50) 				
 		CIOpt(passthru) 
@@ -5065,7 +5070,8 @@ end
 		OLineopt(passthru) 
 		OUTplot(string)  //or|rr
 		PLOTstat(passthru) //comma seperated
-		POINTopt(passthru) 
+		POINTopt(passthru)
+		BOXopts(passthru)		
 		SUBLine 
 		TEXts(real 1.5) 
 		XLIne(passthru)	/*silent option*/
@@ -5133,7 +5139,7 @@ end
 	if "`texts'" != "" {
 		local texts "texts(`texts')"
 	}
-	local foptions `"`astext' `ciopt' `diamopt' `arrowopt' `double' `ovline' `stats' `wt' `olineopt' `plotstat' `pointopt' `subline' `texts' `xlabel' `xtick' `grid' `xline'  `logscale' `graphsave' `options'"'
+	local foptions `"`astext' `ciopt' `diamopt' `arrowopt' `double' `ovline' `stats' `wt' `box' `olineopt' `plotstat' `pointopt' `boxopts' `subline' `texts' `xlabel' `xtick' `grid' `xline'  `logscale' `graphsave' `options'"'
 	return local outplot = "`outplot'"
 	return local lcols ="`lcols'"
 	return local foptions = `"`foptions'"'
@@ -5146,7 +5152,7 @@ end
 
 	capture program drop fplot
 	program define fplot
-	version 14.1	
+		
 	#delimit ;
 	syntax varlist [if] [in] [,
 	    /*Passed from top options*/
@@ -5173,12 +5179,13 @@ end
 		noOVLine 
 		noSTATS
 		noWT
-		noBox
+		noBOx
 		summaryonly
 		OLineopt(string) 
 		OUTplot(string) 
 		PLOTstat(string asis) /*comma seperated*/
 		POINTopt(string) 
+		BOXopts(string)
 		SUBLine 
 		TEXts(real 1.5) 
 		XLIne(string asis)
@@ -5193,7 +5200,10 @@ end
 	
 	local foptions `"`options'"'
 	if strpos(`"`foptions'"', "graphregion") == 0 {
-			local foptions `"graphregion(color(white)) `foptions'"'
+			local foptions `"graphregion(color(white) margin(medium))  `foptions'"'
+	}
+	if strpos(`"`foptions'"', "plotregion") == 0 {
+			local foptions `"plotregion(margin(zero)) `foptions'"'
 		}
 	
 	tempvar es lci uci modeles modellci modeluci use label tlabel id newid se  df  expand orig ///
@@ -5406,12 +5416,15 @@ end
 			if "`1'" != ","{
 				local lbl = string(`1',"%7.3g")
 				if "`logscale'" != "" {
+					local val = ln(max(`1', 0.00001))
+					/*
 					if "`1'" == "0" {
 						local val = ln(`=10^(-`dp')')
 					}
 					else {
 						local val = ln(`1')
 					}
+					*/
 				}
 				else {
 					local val = `1'
@@ -5431,12 +5444,14 @@ end
 		while "`1'" != ""{
 			if "`1'" != ","{
 				if "`logscale'" != "" {
+					local val = ln(max(`1', 0.00001))
+					/*
 					if "`1'" == "0" {
 						local val = ln(`=10^(-`dp')')
 					}
 					else {
 						local val = ln(`1')
-					}
+					}*/
 				}
 				else {
 					local val = `1'
@@ -5825,12 +5840,13 @@ end
 		if `"`boxopts'"' != "" & strpos(`"`boxopts'"',"msy") == 0{
 			local boxopts = `"`boxopts' msymbol(square)"' 
 		}
-		if `"`boxopts'"' != "" & strpos(`"`boxopts'"',"msi") == 0{
+		if `"`boxopts'"' != "" & strpos(`"`boxopts'"',"msi") == 0 {
 			local boxopts = `"`boxopts' msize(0.5)"' 
 		}
 		if `"`boxopts'"' != "" & strpos(`"`boxopts'"',"mco") == 0{
 			local boxopts = `"`boxopts' mcolor("180 180 180")"' 
 		}
+		
 		if `"`boxopts'"' == "" {
 			local boxopts "msymbol(square) msize(.5) mcolor("180 180 180")"
 		}
@@ -6032,7 +6048,7 @@ end
 		local xaxistitlex1 `=(`DXmax1' + `DXmin1')*0.5'
 		local xaxistitlex2 `=(`DXmax1' + `DXmin1')*0.5 + `shift''
 		
-		if "`comparative'" != "" & "`outplot'" != "abs"  {
+		/*if "`comparative'" != "" & "`outplot'" != "abs"  {
 			local varx :word 1 of `varxlabs'
 			local indexlab :word 2 of `varxlabs'
 			local baselab :word 3 of `varxlabs'
@@ -6040,10 +6056,10 @@ end
 			local xaxistitle1  (scatteri `=`xaxislineposition' + 2.25' `xaxistitlex1' "`plotstatse' (`varx' = `indexlab' / `baselab')", msymbol(i) mlabcolor(black) mlabpos(0) mlabsize(`texts'))
 			local xaxistitle2  (scatteri `=`xaxislineposition' + 2.25' `xaxistitlex2' "`plotstatsp' (`varx' = `indexlab' / `baselab')", msymbol(i) mlabcolor(black) mlabpos(0) mlabsize(`texts'))
 		} 
-		else {
+		else {*/
 			local xaxistitle1  (scatteri `=`xaxislineposition' + 2.25' `xaxistitlex1' "`plotstatse'", msymbol(i) mlabcolor(black) mlabpos(0) mlabsize(`texts'))
 			local xaxistitle2  (scatteri `=`xaxislineposition' + 2.25' `xaxistitlex2' "`plotstatsp'", msymbol(i) mlabcolor(black) mlabpos(0) mlabsize(`texts'))
-		}
+		*}
 		/*xticks*/
 		local ticksx1
 		local ticksx2
@@ -6161,6 +6177,10 @@ end
 			}
 			if "`3'" != "" {
 				local xlineopts = "`3'"
+				
+				if strpos("`xlineopts '", "lcol") == 0 {
+					local xlineopts = `"`xlineopts' lcolor(black)"'
+				}
 			}
 			else {
 				local xlineopts = "lcolor(black)"
@@ -6205,6 +6225,8 @@ end
 		local fname = "name(fplot" + "$by_index_" + ", replace)"
 		noi di as res _n  "NOTE: forest plot name -> fplot$by_index_"
 	}
+	
+	
 	#delimit ;
 	twoway
 		`notecmd' 
@@ -6259,7 +6281,7 @@ end
 /*===============================================================================================*/
 capture program drop getlen
 program define getlen
-version 14.1
+
 //From metaprop
 
 qui{
@@ -6280,7 +6302,7 @@ end
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 	cap program drop sroc
 	program define sroc
-		version 14.0
+		
 
 		#delimit ;
 		syntax varlist,	
@@ -6794,7 +6816,7 @@ end
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 	cap program drop tradeoff
 	program define tradeoff
-		version 14.0
+	
 
 		#delimit ;
 		syntax varlist,
@@ -7102,7 +7124,7 @@ end
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/	
 cap program drop postsim
 program define postsim, rclass
-version 14.1
+
 	#delimit ;
 	syntax [if] [in], todo(string) orderid(varname) studyid(varname) estimates(name) 
 	[cveffect(string) regressors(varlist) absoutse(name) absoutsp(name) serrout(name) sprrout(name) orout(name) link(string) se(varname) sp(varname)
