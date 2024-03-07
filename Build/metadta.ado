@@ -43,10 +43,13 @@ DATE:						DETAILS:
 							Simulate posterior distributions
 							smooth:Option to generate smooth estimates
 12.01.2023					Correction on computation of the sroc predicticn region	
-19.01.2023					option enhance - report conditional/exact if simulated summary is not sensible						
+19.01.2023					option enhance - report conditional/exact if simulated summary is not sensible
+07.03.2023					add boxopts()
+							more options for rrci
+							
 							
 FUTURE 						Work on the absolutes for the paired analysis; 
-							if version 16 or later; use melogit instead of meqrlogit
+							
 
 */
 
@@ -183,6 +186,47 @@ program define metadta, eclass sortpreserve byable(recall)
 	}
 	
 	//General housekeeping
+	if "`outplot'" != "abs"  {	
+		//iOR
+		if ("`icimethod'" != "") & "`outplot'" == "or" {
+			if (strpos("`cimethod'", "ex") != 1) & (strpos("`cimethod'", "wo") != 1) & (strpos("`cimethod'", "co") != 1)  {
+				di as error "Option `cimethod' not allowed in cimethod(`cimethod')"
+				exit	
+			}
+		}
+		if ("`icimethod'" == "") & "`outplot'" == "or"  {
+			local cimethod "woolf"
+		}
+		
+		//iRR
+		if "`design'" == "mcbnetwork" & "`outplot'" == "rr"  {
+			local cimethod "CML"
+		}
+		if ("`design'" == "pcbnetwork" | "`design'" == "comparative") & "`outplot'" == "rr"   {
+			if ("`cimethod'" != "")  {
+				if (strpos("`cimethod'", "ka") != 1) & (strpos("`cimethod'", "koo") != 1) & (strpos("`cimethod'", "bai") != 1)  {
+					di as error "Option `cimethod' not allowed in cimethod(`cimethod')"
+					exit	
+				}
+			}
+			if ("`cimethod'" == "") {
+				local cimethod "koopman"
+			}
+		}
+	}
+	
+	if "`outplot'" == "abs"  {
+		if "`cimethod'" != "" {
+			if (strpos("`cimethod'", "ex") != 1) & (strpos("`cimethod'", "wi") != 1) &  (strpos("`cimethod'", "wa") != 1) & (strpos("`cimethod'", "e") != 1) & (strpos("`cimethod'", "ag") != 1) & (strpos("`cimethod'", "je") != 1)   {
+				di as error "Option `icimethod' not allowed in cimethod(`cimethod')"
+				exit	
+			}
+		}
+		else {
+			local cimethod "wilson"
+		}
+	}
+	
 	if 	"`ref'" != "" {
 		tokenize "`ref'", parse(",")
 		local ref `1'
@@ -1993,7 +2037,7 @@ program define metadta, eclass sortpreserve byable(recall)
 				
 			if "`refpos'" == "bottom" {
 				if "`outplot'" == "rr" {
-					koopmanci `event'`=`indexcode'-1' `total'`=`indexcode'-1' `event'`=`basecode'-1' `total'`=`basecode'-1', r(`es') upperci(`uci') lowerci(`lci') alpha(`=1 - `level'*0.01')
+					rrci `event'`=`indexcode'-1' `total'`=`indexcode'-1' `event'`=`basecode'-1' `total'`=`basecode'-1', r(`es') upperci(`uci') lowerci(`lci') alpha(`=1 - `level'*0.01') cimethod(`cimethod')
 				}
 				if "`outplot'" == "or" {
 					orccci `event'`=`indexcode'-1' `total'`=`indexcode'-1' `event'`=`basecode'-1' `total'`=`basecode'-1', r(`es') upperci(`uci') lowerci(`lci') level(`level') cimethod(`cimethod')
@@ -2001,7 +2045,7 @@ program define metadta, eclass sortpreserve byable(recall)
 			}
 			else {
 				if "`outplot'" == "rr" {
-					koopmanci `event'`=`basecode'-1' `total'`=`basecode'-1' `event'`=`indexcode'-1' `total'`=`indexcode'-1', r(`es') upperci(`uci') lowerci(`lci') alpha(`=1 - `level'*0.01')
+					rrci `event'`=`basecode'-1' `total'`=`basecode'-1' `event'`=`indexcode'-1' `total'`=`indexcode'-1', r(`es') upperci(`uci') lowerci(`lci') alpha(`=1 - `level'*0.01') cimethod(`cimethod')
 				}
 				if "`outplot'" == "or" {
 					orccci `event'`=`basecode'-1' `total'`=`basecode'-1' `event'`=`indexcode'-1' `total'`=`indexcode'-1', r(`es') upperci(`uci') lowerci(`lci') level(`level') cimethod(`cimethod')			
@@ -2103,7 +2147,7 @@ program define metadta, eclass sortpreserve byable(recall)
 			}
 			
 			if "`outplot'" == "rr" {
-				koopmanci `event'1 `total'1 `event'0 `total'0, r(`es') upperci(`uci') lowerci(`lci') alpha(`=1 - `level'*0.01')
+				rrci `event'1 `total'1 `event'0 `total'0, r(`es') upperci(`uci') lowerci(`lci') alpha(`=1 - `level'*0.01') cimethod(`cimethod')
 			}
 			if "`outplot'" == "or" {
 				orccci`event'1 `total'1 `event'0 `total'0, r(`es') upperci(`uci') lowerci(`lci') level(`level') cimethod(`cimethod')
@@ -2486,6 +2530,23 @@ program define fitmodel, rclass
 			
 			local success = _rc
 			local converged = e(converged)
+			
+			//Got to meqrlogit if melogit fails
+			if  ("`fitcommand'" == "melogit") & ((`converged' == 0) | (`success' != 0))  {
+			
+					local fitcommand "meqrlogit"
+					local iterate = `"iterate(30)"'
+					
+					local ++try
+					#delim ;
+					capture noisily `fitcommand' (`1' `regexpression' if `touse', noconstant )|| 
+					  (`sid': `re', noconstant `cov') `nested',
+					  binomial(`2') `modelopts' `intopts' `iterate'  l(`level');
+					#delimit cr 
+					
+					local success = _rc
+					local converged = e(converged)
+			}
 			
 			if  ("`fitcommand'" == "meqrlogit") & (strpos(`"`modelopts'"', "from") == 0) & ((`converged' == 0) | (`success' != 0))  {
 				//First fit fixed effects model to get better starting values
@@ -4971,6 +5032,228 @@ program define estcovar, rclass
 	return matrix BVar = `BVar' 
 	return local k = `k' 
 end
+
+	/*+++++++++++++++++++++++++	SUPPORTING FUNCTIONS: 	RRCI +++++++++++++++++++++++++
+								CI for RR
+	++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+	cap program drop rrci
+	program define rrci
+	
+		syntax varlist, R(name) lowerci(name) upperci(name) cimethod(string) [alpha(real 0.05)]
+		
+		qui {	
+			tokenize `varlist'
+			gen `r' = . 
+			gen `lowerci' = .
+			gen `upperci' = .
+			
+			local zstar =  -invnorm(`alpha'/2)
+			local chisq = invchi2(1, `=1-`alpha'')
+			
+			count
+			forvalues i = 1/`r(N)' {
+				local n1 = `1'[`i']
+				local N1 = `2'[`i']
+				local n2 = `3'[`i']
+				local N2 = `4'[`i']
+				
+				//Get the intervals
+				if "`cimethod'" == "koopman" {
+					koopmancii `n1' `N1' `n2' `N2', alpha(`alpha')
+					
+					mat ci = r(ci)
+					local lorr  = ci[1, 1]
+					local uprr = ci[1, 2]
+					
+					if (`n1' == 0) &(`n2'==0) {
+						local rr  = 0 in `i'
+					}
+					else {
+						local rr = (`n1'/`N1')/(`n2'/`N2')	
+					}
+				}
+				if ("`cimethod'" == "adlog") {
+					if ((`n1' == `N1') & (`n2' == `N2')) {
+						local rr = (`n1'/`N1')/(`n2'/`N2')
+						local n1 = `N1' - 0.5
+						local n2 = `N2' - 0.5
+						local nrr = ((`n1' + 0.5)/(`N1' + 0.5))/((`n2' + 0.5)/(`N2' +  0.5))
+						local varhat =(1/(`n1' + 0.5)) - (1/(`N1' + 0.5)) + (1/(`n2' + 0.5)) - (1/(`N2' + 0.5))
+						local lorr = `nrr' * exp(-1 * `zstar' * sqrt(`varhat'))
+						local uprr = `nrr' * exp((`zstar' * sqrt(`varhat'))
+					}
+					else if (`n1' == 0 & `n2' == 0) {
+						local lorr  = 0
+						local uprr = .
+						local rr = 0
+						local varhat = (1/(`n1' + 0.5)) - (1/(`N1' + 0.5)) + (1/(`n2' + 0.5)) - (1/(`N2' + 0.5))
+					}
+					else {
+						rat = (`n1'/`N1')/(`n2'/`N2')
+						local nrr  = ((`n1' + 0.5)/(`N1' + 0.5))/((`n2' + 0.5)/(`N2' + 0.5))
+						local varhat = (1/(`n1' + 0.5)) - (1/(`N1' + 0.5)) + (1/(`n2' + 0.5)) - (1/(`N2' + 0.5))
+						local lorr = `nrr' * exp(-1 * `zstar' * sqrt(`varhat'))
+						local uprr = `nrr' * exp((`zstar' * sqrt(`varhat'))
+					}
+				}
+				if ("`cimethod'" == "bailey") {
+				
+					local rr = (`n1'/`N1')/(`n2'/`N2')
+					
+					if (`n1' == `N1') & (`n2' == `N2'){
+						local varhat = (1/(`N1' - 0.5)) - (1/(`N1')) + (1/(`N2' - 0.5)) - (1/(`N2'))
+					} 
+					else {
+						local varhat = (1/(`n1')) - (1/(`N1')) + (1/(`n2')) - (1/(`N2'))
+					}
+
+					local phat1 = `n1'/`N1'
+					local phat2 = `n2'/`N2'
+					local qhat1 = 1 - `phat1'
+					local qhat2 = 1 - `phat2'
+					
+					if (`n1' == 0 | `n2' == 0) {
+						
+						if `n1' == 0 {
+							local xn = 0.5
+						}
+						else {
+							local xn =`n1'
+						}
+										
+						if `n2' == 0 { 
+							local yn =  0.5
+						}					
+						else {
+							local yn =  `n2'
+						}
+						
+						local nrr = (`xn'/`N1')/(`yn'/`N2')
+						local phat1 = `xn'/`N1'
+						local phat2 = `yn'/`N2'
+						local qhat1 = 1 - `phat1'
+						local qhat2 = 1 - `phat2'
+						if (`xn' == `N1' | `yn' == `N2') {
+							if  `xn' == `N1' { 
+								local xn = `N1' - 0.5
+							} 
+							else {
+								local xn = `xn'
+							 }
+						
+							if `yn' == `N2'{ 
+								local yn = `N2' - 0.5
+							}
+							else {
+								local yn = `yn'
+							}
+							local nrr = (`xn'/`N1')/(`yn'/`N2')
+							local phat1 = `xn'/`N1'
+							local phat2 = `yn'/`N2'
+							local qhat1 = 1 - `phat1'
+							local qhat2 = 1 - `phat2'
+						}
+					}
+					if (`n1' == 0 | `n2' == 0) {
+						if (`n1' == 0 & `n2' == 0) {
+						  local nrr = .
+						  local lorr = 0
+						  local uprr = .
+						}
+						if (`n1' == 0 & `n2' != 0) {
+						  local lorr = 0
+						  local uprr = `nrr' * ((1 + `zstar' * sqrt((`qhat1'/`xn') + (`qhat2'/`yn') - (`zstar'^2 * `qhat1' * `qhat2')/(9 * `xn' * `yn'))/3)/((1 - (`zstar'^2 * `qhat2')/(9 * `yn'))))^3
+						}
+						if (`n2' == 0 & `n1' != 0) {
+						  local uprr = .
+						  local lorr =`nrr' * ((1 - `zstar' * sqrt((`qhat1'/`xn') + (`qhat2'/`yn') - (`zstar'^2 * `qhat1' * `qhat2')/(9 * `xn' * `yn'))/3)/((1 - (`zstar'^2 * `qhat2')/(9 * `yn'))))^3
+						}
+					}
+					else if (`n1' == `N1' | `n2' == `N2') {
+						
+						if `n1' == `N1'{
+							local xn = `N1' - 0.5
+						}
+						else {					
+							local xn = `n1'
+						}
+											
+						if `n2' == `N2' {
+							local yn = `N2' - 0.5
+						}
+						else {					
+							local yn = `n2'
+						}
+						
+						local nrr = (`xn'/`N1')/(`yn'/`N2')
+						local phat1 = `xn'/`N1'
+						local phat2 = `yn'/`N2'
+						local qhat1 = 1 - `phat1'
+						local qhat2 = 1 - `phat2'
+						local lorr = `nrr' * ((1 - `zstar' * sqrt((`qhat1'/`xn') + (`qhat2'/`yn') - (`zstar'^2 * `qhat1' * `qhat2')/(9 * `xn' * `yn'))/3)/((1 - (`zstar'^2 * `qhat2')/(9 * `yn'))))^3
+						local uprr = `nrr' * ((1 + `zstar' * sqrt((`qhat1'/`xn') + (`qhat2'/`yn') - (`zstar'^2 * `qhat1' * `qhat2')/(9 * `xn' * `yn'))/3)/((1 - (`zstar'^2 * `qhat2')/(9 * `yn'))))^3
+					}
+					else {
+						local lorr = `nrr' * ((1 - `zstar' * sqrt((`qhat1'/`n1') + (`qhat2'/`n2') - (`zstar'^2 * `qhat1' * `qhat2')/(9 * `n1' * `n2'))/3)/((1 - (`zstar'^2 * `qhat2')/(9 * `n2'))))^3
+						local uprr = `nrr' * ((1 + `zstar' * sqrt((`qhat1'/`n1') + (`qhat2'/`n2') - (`zstar'^2 * `qhat1' * `qhat2')/(9 * `n1' * `n2'))/3)/((1 - (`zstar'^2 * `qhat2')/(9 * `n2'))))^3
+					}
+				}
+				if ("`cimethod'" == "katz") {
+					if ((`n1' == 0 & `n2' == 0) | (`n1' == 0 & `n2' != 0) | (`n1' != 0 & `n2' == 0) | (`n1' == `N1' & `n2' == `N2')) {
+						if (`n1' == 0 & `n2' == 0) {
+						  local lorr = 0
+						  local uprr = .
+						  local rr = 0
+						  local varhat = .
+						}
+						if (`n1' == 0 & `n2' != 0) {
+						  local lorr = 0
+						  local rr = (`n1'/`N1')/(`n2'/`N2')
+						  local n1 = 0.5
+						  local nrr = (`n1'/`N1')/(`n2'/`N2')
+						  local varhat = (1/`n1') - (1/`N1') + (1/`n2') - (1/`N2')
+						  local uprr = `nrr' * exp(`zstar' * sqrt(`varhat'))
+						}
+						if (`n1' != 0 & `n2' == 0) {
+						  local uprr = .
+						  local rr = (`n1'/`N1')/(`n2'/`N2')
+						  
+						  local n2 = 0.5
+						  local nrr = (`n1'/`N1')/(`n2'/`N2')
+						  local varhat = (1/`n1') - (1/`N1') + (1/`n2') - (1/`N2')
+						  local lorr = `nrr' * exp(-1 * `zstar' * sqrt(`varhat'))
+						}
+						if (`n1' == `N1' & `n2' == `N2') {
+						  local rr = (`n1'/`N1')/(`n2'/`N2')
+						  
+						  local n1 = `N1' - 0.5
+						  local n2 = `N2' - 0.5
+						  local nrr = (`n1'/`N1')/(`n2'/`N2')
+						  local varhat = (1/`n1') - (1/`N1') + (1/`n2') - (1/`N2')
+						  local lorr = `nrr' * exp(-1 * `zstar' * sqrt(`varhat'))
+						  
+						  local n1 = `N1' - 0.5
+						  local n2 = `N2' - 0.5
+						  local nrr = (`n1'/`N1')/(`n2'/`N2')
+						  local varhat = (1/`n1') - (1/`N1') + (1/`n2') - (1/`N2')
+						  local uprr = `nrr' * exp(`zstar' * sqrt(`varhat'))
+						}
+					}
+					else {
+						local rr = (`n1'/`N1')/(`n2'/`N2')
+						local varhat = (1/`n1') - (1/`N1') + (1/`n2') - (1/`N2')
+						local lorr = `rr' * exp(-1 * `zstar' * sqrt(`varhat'))
+						local uprr = `rr' * exp(`zstar' * sqrt(`varhat'))
+					}
+				}
+				
+				replace `r' = `rr' in `i'
+				replace `lowerci' = `lorr' in `i'
+				replace `upperci' = `uprr' in `i'
+			}
+		}
+	end
+
 	/*+++++++++++++++++++++++++	SUPPORTING FUNCTIONS: 	KOOPMANCI +++++++++++++++++++++++++
 								CI for RR
 	++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
@@ -4995,6 +5278,8 @@ end
 
 				koopmancii `n1' `N1' `n2' `N2', alpha(`alpha')
 				mat ci = r(ci)
+				
+				
 				
 				if (`n1' == 0) &(`n2'==0) {
 					replace `r' = 0 in `i'
