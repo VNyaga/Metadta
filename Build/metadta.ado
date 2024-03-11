@@ -185,47 +185,6 @@ program define metadta, eclass sortpreserve byable(recall)
 		local design = "general"  //default design
 	}
 	
-	//General housekeeping
-	if "`outplot'" != "abs"  {	
-		//iOR
-		if ("`icimethod'" != "") & "`outplot'" == "or" {
-			if (strpos("`cimethod'", "ex") != 1) & (strpos("`cimethod'", "wo") != 1) & (strpos("`cimethod'", "co") != 1)  {
-				di as error "Option `cimethod' not allowed in cimethod(`cimethod')"
-				exit	
-			}
-		}
-		if ("`icimethod'" == "") & "`outplot'" == "or"  {
-			local cimethod "woolf"
-		}
-		
-		//iRR
-		if "`design'" == "mcbnetwork" & "`outplot'" == "rr"  {
-			local cimethod "CML"
-		}
-		if ("`design'" == "pcbnetwork" | "`design'" == "comparative") & "`outplot'" == "rr"   {
-			if ("`cimethod'" != "")  {
-				if (strpos("`cimethod'", "ka") != 1) & (strpos("`cimethod'", "koo") != 1) & (strpos("`cimethod'", "bai") != 1) & (strpos("`cimethod'", "adlog") != 1) {
-					di as error "Option `cimethod' not allowed in cimethod(`cimethod')"
-					exit	
-				}
-			}
-			if ("`cimethod'" == "") {
-				local cimethod "koopman"
-			}
-		}
-	}
-	
-	if "`outplot'" == "abs"  {
-		if "`cimethod'" != "" {
-			if (strpos("`cimethod'", "ex") != 1) & (strpos("`cimethod'", "wi") != 1) &  (strpos("`cimethod'", "wa") != 1) & (strpos("`cimethod'", "e") != 1) & (strpos("`cimethod'", "ag") != 1) & (strpos("`cimethod'", "je") != 1)   {
-				di as error "Option `icimethod' not allowed in cimethod(`cimethod')"
-				exit	
-			}
-		}
-		else {
-			local cimethod "wilson"
-		}
-	}
 	
 	if 	"`ref'" != "" {
 		tokenize "`ref'", parse(",")
@@ -478,6 +437,47 @@ program define metadta, eclass sortpreserve byable(recall)
 	local lcols = r(lcols)
 	if "`lcols'" == " " { //if empty
 		local lcols
+	}
+		//General housekeeping
+	if "`outplot'" != "abs"  {	
+		//iOR
+		if ("`cimethod'" != "") & "`outplot'" == "or" {
+			if (strpos("`cimethod'", "ex") != 1) & (strpos("`cimethod'", "wo") != 1) & (strpos("`cimethod'", "co") != 1)  {
+				di as error "Option `cimethod' not allowed in cimethod(`cimethod')"
+				exit	
+			}
+		}
+		if ("`cimethod'" == "") & "`outplot'" == "or"  {
+			local cimethod "woolf"
+		}
+		
+		//iRR
+		if "`design'" == "mcbnetwork" & "`outplot'" == "rr"  {
+			local cimethod "CML"
+		}
+		if ("`design'" == "pcbnetwork" | "`design'" == "comparative") & "`outplot'" == "rr"   {
+			if ("`cimethod'" != "")  {
+				if (strpos("`cimethod'", "ka") != 1) & (strpos("`cimethod'", "koo") != 1) & (strpos("`cimethod'", "bai") != 1) & (strpos("`cimethod'", "adlog") != 1) {
+					di as error "Option `cimethod' not allowed in cimethod(`cimethod')"
+					exit	
+				}
+			}
+			if ("`cimethod'" == "") {
+				local cimethod "koopman"
+			}
+		}
+	}
+	
+	if "`outplot'" == "abs"  {
+		if "`cimethod'" != "" {
+			if (strpos("`cimethod'", "ex") != 1) & (strpos("`cimethod'", "wi") != 1) &  (strpos("`cimethod'", "wa") != 1) & (strpos("`cimethod'", "e") != 1) & (strpos("`cimethod'", "ag") != 1) & (strpos("`cimethod'", "je") != 1)   {
+				di as error "Option `icimethod' not allowed in cimethod(`cimethod')"
+				exit	
+			}
+		}
+		else {
+			local cimethod "wilson"
+		}
 	}
 	
 	*declare study labels for display
@@ -5344,6 +5344,7 @@ end
 		noWT
 		noBOx
 		/*passed via foptions*/
+		
 		AStext(integer 50) 				
 		CIOpt(passthru) 
 		DIAMopt(passthru) 
