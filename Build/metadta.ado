@@ -204,7 +204,7 @@ program define metadta, eclass sortpreserve byable(recall)
 		}
 		if ("`design'" == "pcbnetwork" | "`design'" == "comparative") & "`outplot'" == "rr"   {
 			if ("`cimethod'" != "")  {
-				if (strpos("`cimethod'", "ka") != 1) & (strpos("`cimethod'", "koo") != 1) & (strpos("`cimethod'", "bai") != 1)  {
+				if (strpos("`cimethod'", "ka") != 1) & (strpos("`cimethod'", "koo") != 1) & (strpos("`cimethod'", "bai") != 1) & (strpos("`cimethod'", "adlog") != 1) {
 					di as error "Option `cimethod' not allowed in cimethod(`cimethod')"
 					exit	
 				}
