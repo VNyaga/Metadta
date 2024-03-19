@@ -109,7 +109,7 @@ program define metadta, eclass sortpreserve byable(recall)
 	TRADEoff	 
 	SMooth nsims(integer 800) //max dim in stata ic
 	GOF //Goodness of fit
-	ENHAnce //Replace population-averaged estimates with Conditional/exact estimates if model has issues e.g complete seperation etc
+
 	] ;
 	#delimit cr
 	
@@ -760,9 +760,9 @@ program define metadta, eclass sortpreserve byable(recall)
 		local byvar "`Index'"
 	} 
 	
-	if "`enhance'" != "" & "`stratify'" == ""  {
-		di as error "The option enhance is only allowed in stratified analysis"
-		exit		
+	//Replace population-averaged estimates with Conditional/exact estimates if model has issues e.g complete seperation etc
+	if "`stratify'" != ""  {
+		local enhance "enhance"		
 	}
 	
 	*Stratify not allow in cbnetwork or abnetwork analysis
@@ -886,7 +886,7 @@ program define metadta, eclass sortpreserve byable(recall)
 
 			//Number of studies in the analysis
 			qui egen `uniq' = group(`studyid') if `by' == `i'
-			qui summ `uniq'
+			qui summ `uniq' 
 			local Nuniq = r(max)
 			drop `uniq'	
 		}
@@ -1321,42 +1321,33 @@ program define metadta, eclass sortpreserve byable(recall)
 		mat colnames `refei' = Chi2 df pval
 		mat rownames `refei' = Overall
 		
-		//if no df, get exact estimates	
-		if `Nobs' > 1 & `p' > 0 & "`getmodel'" == "fixed" {
+		//Get exact estimates	
+		if `Nobs' > 1 & `p' < 1 {
 			qui estimates restore metadta_modest
-			
-			local datapoints = e(N) 
-			
-			local df = e(df) //number of df
+			 qui {					
+				//Exact inference					
+				sum `event' if e(sample) & `se'
+				local n1 = r(sum)
+				sum `total' if e(sample) & `se'
+				local N1 = r(sum)
 				
-			if (`=`datapoints'*0.5 - `df'' < 1) | (`df' < 1) {
-				 qui {
-					
-					//Exact inference					
-					sum `event' if e(sample) & `se'
-					local n1 = r(sum)
-					sum `total' if e(sample) & `se'
-					local N1 = r(sum)
-					
-					metadta_absexactci `N1' `n1',  level(`level') //exact ci
-					mat `absexactse' = r(absexact)
-					
-					sum `event' if e(sample) & `sp'
-					local n2 = r(sum)
-					sum `total' if e(sample) & `sp'
-					local N2 = r(sum)
-					
-					metadta_absexactci `N2' `n2',  level(`level') //exact ci
-					mat `absexactsp' = r(absexact)
-					
-					mat `absexact' = `absexactse' \ `absexactsp'					
-					mat rownames `absexact' = Sensitivity Specificity
-					
-				}
+				metadta_absexactci `N1' `n1',  level(`level') //exact ci
+				mat `absexactse' = r(absexact)
+				
+				sum `event' if e(sample) & `sp'
+				local n2 = r(sum)
+				sum `total' if e(sample) & `sp'
+				local N2 = r(sum)
+				
+				metadta_absexactci `N2' `n2',  level(`level') //exact ci
+				mat `absexactsp' = r(absexact)
+				
+				mat `absexact' = `absexactse' \ `absexactsp'					
+				mat rownames `absexact' = Sensitivity Specificity
+				
 			}
 			local optimizedi = 1
-		}
-		
+		}		
 	
 		if `Nobs' > 1 {		
 			
@@ -2561,6 +2552,7 @@ program define fitmodel, rclass
 					local iterate = `"iterate(50)"'
 				}
 			}
+			
 			if strpos(`"`modelopts'"', "intpoi") == 0  {
 				qui count if `touse'
 				if `=r(N)' < 7 {
@@ -2576,7 +2568,7 @@ program define fitmodel, rclass
 			  binomial(`2') `modelopts' `intopts' `iterate'  l(`level');
 			#delimit cr 
 			
-			local success = e(rc)
+			local success = _rc
 			local converged = e(converged)
 			
 			//Got to meqrlogit if melogit fails
@@ -2592,7 +2584,7 @@ program define fitmodel, rclass
 					  binomial(`2')  `intopts' `iterate'  l(`level');
 					#delimit cr 
 					
-					local success = e(rc)
+					local success = _rc
 					local converged = e(converged)
 			}
 			
@@ -2603,7 +2595,7 @@ program define fitmodel, rclass
 				noi di   "*********************************** ************* ***************************************" 
 				local ++try
 				capture noisily binreg `1' `regexpression' if `touse', noconstant n(`2') ml  
-				local success = e(rc)
+				local successinits = _rc
 				if _rc == 0 {				
 					qui estimates table
 					mat `coefs' = r(coef)
@@ -2647,17 +2639,17 @@ program define fitmodel, rclass
 				mat `varcov' = J(1, `b', 0)					
 				mat `initmat' = (`inits', `varcov')
 				
-				local inits = `"from(`initmat', copy)"'
+				local initvals = `"from(`initmat', copy)"'
 				
 				//Laplace first without nested
 				local ++try
 				#delim ;
 				capture noisily `fitcommand' (`1' `regexpression' if `touse', noc )|| 
 				  (`sid': `re', noc `cov'),
-				  binomial(`2') `inits' `intopts' `iterate'  l(`level') matlog laplace;
+				  binomial(`2') `initvals' `intopts' `iterate'  l(`level') matlog laplace;
 				#delimit cr 
 				
-				local success = e(rc)
+				local successinits = _rc
 				local converged = e(converged)
 				if _rc == 0 {
 					//Get the new estimates
@@ -2684,16 +2676,16 @@ program define fitmodel, rclass
 					mat `varcov' = J(1, `w', 0)					
 					mat `initmat' = (`inits', `varcov')
 					
-					local inits = `"from(`initmat', copy)"'
+					local initvals = `"from(`initmat', copy)"'
 					//fit once more with nested
 					local ++try
 					#delim ;
 					capture noisily `fitcommand' (`1' `regexpression' if `touse', noc )|| 
 					  (`sid': `re', noc `cov') `nested',
-					  binomial(`2') `inits' `intopts' `iterate'  l(`level') matlog laplace;
+					  binomial(`2') `initvals' `intopts' `iterate'  l(`level') matlog laplace;
 					#delimit cr 
 					
-					local success = _rc
+					local successinits = _rc
 					local converged = e(converged)
 					
 					if _rc == 0 {
@@ -2719,26 +2711,28 @@ program define fitmodel, rclass
 					
 				}
 				
-				mat `initmat' = (`inits')	
-				local inits = `"from(`initmat', copy)"'
-				
-				if strpos(`"`modelopts'"', "refineopts") == 0 {				
-					local refine "refineopts(iterate(20))"
-				}
-				if (strpos(`"`modelopts'"', "matlog") == 0) {
-					local matlog "matlog"
-				}				
+				if (`successinits' == 0) {
+					mat `initmat' = (`inits')	
+					local initvals = `"from(`initmat', copy)"'
+					
+					if strpos(`"`modelopts'"', "refineopts") == 0 {				
+						local refine "refineopts(iterate(20))"
+					}
+					if (strpos(`"`modelopts'"', "matlog") == 0) {
+						local matlog "matlog"
+					}				
 
-				//Final fit
-				local ++try
-				#delim ;
-				capture noisily `fitcommand' (`1' `regexpression' if `touse', noc )|| 
-				  (`sid': `re', noc `cov') `nested',
-				  binomial(`2') `inits' `intopts' `iterate' `refine' `matlog'  l(`level');
-				#delimit cr 
-				
-				local success = e(rc)
-				local converged = e(converged)
+					//Final fit
+					local ++try
+					#delim ;
+					capture noisily `fitcommand' (`1' `regexpression' if `touse', noc )|| 
+					  (`sid': `re', noc `cov') `nested',
+					  binomial(`2') `initvals' `intopts' `iterate' `refine' `matlog'  l(`level');
+					#delimit cr 
+					
+					local success = _rc
+					local converged = e(converged)
+				}
 			}			
 		}
 		//Revert to FE if ME fails
@@ -2999,6 +2993,19 @@ program define prep4show
 					local C_422 = `absoutsp'[`=`l'*`m' + `c'', 6]
 					
 					if "`enhance'" != "" {
+						//if simulated RE more than 5 times larger, replace with conditional stats 
+						//se
+						if (`=(`S_412' - `S_312')/(`C_412' - `C_312')' > 5) & (`C_412' == .) & (`C_312' == .)  {
+							local S_312 = `C_312'
+							local S_412 = `C_412'
+						}
+						
+						//sp
+						if (`=(`S_422' - `S_322')/(`C_422' - `C_322')' > 5) & (`C_422' == .) & (`C_322' == .)  {
+							local S_322 = `C_322'
+							local S_422 = `C_422'
+						}
+						
 						//if simulated FE variance 5 times larger replace with exact
 						//se
 						if (`=(`S_412' - `S_312')/(`E_412' - `E_312')' > 5) & (`E_412' != .) & (`E_312' != .)  {
@@ -3010,18 +3017,6 @@ program define prep4show
 						if (`=(`S_422' - `S_322')/(`E_422' - `E_322')' > 5) & (`E_422' != .) & (`E_322' != .)  {
 							local S_322 = `E_322'
 							local S_422 = `E_422'
-						}
-						//if simulated RE more than 5 times larger, replace with conditional stats 
-						//se
-						if (`=(`S_412' - `S_312')/(`C_412' - `C_312')' > 5) & (`E_412' == .) & (`E_312' == .)  {
-							local S_312 = `C_312'
-							local S_412 = `C_412'
-						}
-						
-						//sp
-						if (`=(`S_422' - `S_322')/(`C_422' - `C_322')' > 5) & (`E_422' == .) & (`E_322' == .)  {
-							local S_322 = `C_322'
-							local S_422 = `C_422'
 						}
 					}	
 				}
@@ -6662,7 +6657,7 @@ end
 		(scatter `id'  `es'  if `use' == 1 , `pointopt') 
 		`smoothcommands2' 
 		`overallCommand1' `overallCommand2'	
-		,`plotopts' `fname'
+		,`plotopts' `plotname'
 		;
 		#delimit cr		
 			
