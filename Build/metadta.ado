@@ -2258,7 +2258,7 @@ program define metadta, eclass sortpreserve byable(recall)
 		
 		//rr equal
 		if "`inltest'" == "yes" {
-			printmat, matrixout(`nltestor') type(rre) dp(`dp') cveffect(`cveffect')
+			printmat, matrixout(`nltestor') type(ore) dp(`dp') cveffect(`cveffect')
 		}
 
 		//pop or
@@ -3526,12 +3526,18 @@ program define printmat
 		local nlensstat : strlen local sumstat
 		local nlensstat = max(10, `nlensstat')
 		
-		if "`type'" == "rre" {
+		if "`type'" == "rre" | "`type'" == "ore"  {
+			if "`type'" == "rre" {
+				local stat = "RR"
+			}
+			else {
+				local stat = "OR"
+			}
 			local rownamesmaxlen = max(`rownamesmaxlen', 20) //Check if there is a longer name
 			local rspec "--`="&"*`=`nrows'-1''-"
 			di as res _n "****************************************************************************************"
 			di as txt _n "Wald-type test for nonlinear hypothesis"
-			di as txt _n "{phang}H0: All (log)RR equal vs. H1: Some (log)RR different {p_end}"
+			di as txt _n "{phang}H0: All (log)`stat' equal vs. H1: Some (log)`stat' different {p_end}"
 
 			#delimit ;
 			noi matlist `matrixout', rowtitle(Effect) 
