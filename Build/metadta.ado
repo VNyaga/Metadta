@@ -42,10 +42,12 @@ DATE:						DETAILS:
 							gof - option to display goodness of fit
 							Simulate posterior distributions
 							smooth:Option to generate smooth estimates
-12.01.2023					Correction on computation of the sroc predicticn region	
-19.01.2023					option enhance - report conditional/exact if simulated summary is not sensible
-07.03.2023					add boxopts()
+12.01.2024					Correction on computation of the sroc predicticn region	
+19.01.2024					option enhance - report conditional/exact if simulated summary is not sensible
+07.03.2024					add boxopts()
 							more options for rrci
+19.03.2024					nomc to mc	
+							catterpilar plot
 							
 							
 FUTURE 						Work on the absolutes for the paired analysis; 
@@ -83,10 +85,11 @@ program define metadta, eclass sortpreserve byable(recall)
 	COMParative /*Comparative data or not*/
 	SUMtable(string) /*Which summary tables to present:abs|logodds|rr|all*/
 	CImethod(string) /*ci method for the study proportions*/
+	CATPplot
 	noFPlot /*No forest plot*/
 	noITable /*No study specific summary table*/
 	noHTable /*No heterogeneity table*/
-	noMC /*No Model comparison - Saves time*/
+	MC /*Model comparison*/
 	PROGress /*See the model fitting*/
 	noSRoc /*No SROC*/
 	noWT  /*Suppress weights in the Itable & fplot*/
@@ -96,6 +99,7 @@ program define metadta, eclass sortpreserve byable(recall)
 	DOWNload(string) /*Keep a copy of data used in the plotting*/
 	Alphasort /*Sort the categorical variable alphabetically*/
 	FOptions(string asis) /*Options specific to the forest plot*/
+	COptions(string asis) /*Options specific to the catpplot plot*/
 	SOptions(string asis) /*Options specific to the sroc plot*/
 	by(varname)  /*the grouping variable*/
 	PAIRed  /*Paired; now called CBnetwork*/
@@ -114,7 +118,7 @@ program define metadta, eclass sortpreserve byable(recall)
 	marksample touse, strok 
 	qui drop if !`touse'
 
-	tempvar rid se sp event total invtotal use id neolabel es lci uci ///
+	tempvar rid se sp event total invtotal use id cid neolabel es lci uci ///
 			modeles modellci modeluci grptotal uniq rowid obsid ///
 			newobs predevent iw pairid
 			
@@ -130,9 +134,10 @@ program define metadta, eclass sortpreserve byable(recall)
 	
 	if _by() {
 		global by_index_ = _byindex()
-		if ("`fplot'" == "" | "`sroc'" == "") & "$by_index_" == "1" {
+		if ("`fplot'" == "" | "`sroc'" == "" | "`catpplot'" != "") & "$by_index_" == "1" {
 			cap graph drop _all
 			global fplotname = 0
+			global cplotname = 0
 			global srocname = 0
 		}
 	}
@@ -431,14 +436,14 @@ program define metadta, eclass sortpreserve byable(recall)
 	tempfile master
 	qui save "`master'"
 	
-	fplotcheck,`design' `foptions' first(`first') by(`by') //Forest plot advance housekeeping
+	dtaplotcheck,`design' `foptions' first(`first') by(`by') //Forest plot advance housekeeping
 	local outplot = r(outplot)
-	local foptions = r(foptions)
+	local foptions = r(plotoptions)
 	local lcols = r(lcols)
 	if "`lcols'" == " " { //if empty
 		local lcols
 	}
-		//General housekeeping
+	//General housekeeping
 	if "`outplot'" != "abs"  {	
 		//iOR
 		if ("`cimethod'" != "") & "`outplot'" == "or" {
@@ -780,8 +785,6 @@ program define metadta, eclass sortpreserve byable(recall)
 				exit
 			}
 		}
-		//nomc 
-		local mc
 	}
 	
 	if "`groupvar'" == "" {
@@ -846,13 +849,22 @@ program define metadta, eclass sortpreserve byable(recall)
 		local smoothi = "`smooth'"
 		local getmodel
 		local optimizedi = 0
+		local computewti "computewt"
+		local ilab
 	
 		//don't run last loop if stratify
 		if (`i' > `nlevels') & ("`stratify'" != "") & ("`design'" == "comparative") {
 			local overall "nooverall"
 			continue, break
 		}
-	
+		
+		//Don't smoothen
+		//Don't smoothen after last loop if stratify
+		if (`i' > `nlevels') & ("`stratify'" != "") {
+			local smoothi
+			local computewti
+		}
+		
 		*Stratify except the last loop for the overall
 		if (`i' < `=`nlevels' + 1') & ("`stratify'" != "") {
 			local strataif `"if `by' == `i'"'
@@ -884,16 +896,10 @@ program define metadta, eclass sortpreserve byable(recall)
 				continue, break
 			}
 			
-			//Don't smoothen
-			//Don't smoothen after last loop if stratify
-			if (`i' > `nlevels') & ("`stratify'" != "") {
-				local smoothi
-			}
-			
 			//Nullify
-			local strataif 					
+			local strataif
+			local stratalab ": all studies"			
 			if "`stratify'" != "" {
-				local stratalab ": all studies"
 				local byrownames = "`byrownames' Overall"	
 				local byrowname = "All_studies"
 			}
@@ -963,48 +969,54 @@ program define metadta, eclass sortpreserve byable(recall)
 		}
 		else {
 			mat `coefmat' = (0 , 0)
-			mat `coefvar' = e(V)
+			*mat `coefvar' = 
 			local getmodel = "none"
+			local rr "norr"
 		}
 		
 		//Obtain the prediction		
 		//if random, needs atleast 7 studies to run predict command
-		qui {
-			count
-			local nobs = r(N)
-			if "`getmodel'" == "random" {
-				if ((`nobs' < 7) & ("`getmodel'" == "random")) {
-					local multipler = int(ceil(7/`nobs'))
-					qui expand `multipler', gen(`newobs')
+		if "`computewti'" != "" {
+			qui {
+				count
+				local nobs = r(N)
+				if "`getmodel'" == "random" {
+					if ((`nobs' < 7) & ("`getmodel'" == "random")) {
+						local multipler = int(ceil(7/`nobs'))
+						qui expand `multipler', gen(`newobs')
+					}
 				}
-			}
+				
+				cap drop `predevent'
+				if "`getmodel'" != "none" {
+					predict `predevent', mu
+				}
+				//Revert to original data if filler data was generated
+				 if (("`getmodel'" == "random") & (`nobs' < 7))  {
+					keep if !`newobs'
+				}
+				
+				//compute the weight
+				cap drop `iw'
+				if "`getmodel'" == "random" {
+					gen `iw' = `total'*(`predevent'/`total')*(1 - `predevent'/`total') if  `predevent' <`total'
+					replace `iw' = `total' if  `predevent'==`total'
+				}
+				else {
+					gen `iw' = `total'
+				}
+				
+				//compute the relative weight
+				sum `iw' if (_ESAMPLE == 1) & `se'
+				local seW = r(sum)
+				
+				sum `iw' if (_ESAMPLE == 1) & !`se'
+				local spW = r(sum)
 			
-			cap drop `predevent'
-			predict `predevent', mu
-			//Revert to original data if filler data was generated
-			 if (("`getmodel'" == "random") & (`nobs' < 7))  {
-				keep if !`newobs'
+				//compute the weights
+				replace _WT = (`iw'/`seW')*100 if (_ESAMPLE == 1) & (_WT == .) & `se'
+				replace _WT = (`iw'/`spW')*100 if (_ESAMPLE == 1) & (_WT == .) & !`se'
 			}
-			
-			//compute the weight
-			cap drop `iw'
-			if "`getmodel'" == "random" {
-				gen `iw' = `total'*(`predevent'/`total')*(1 - `predevent'/`total')
-			}
-			else {
-				gen `iw' = `total'
-			}
-			
-			//compute the relative weight
-			sum `iw' if (_ESAMPLE == 1) & `se'
-			local seW = r(sum)
-			
-			sum `iw' if (_ESAMPLE == 1) & !`se'
-			local spW = r(sum)
-		
-			//compute the weights
-			replace _WT = (`iw'/`seW')*100 if (_ESAMPLE == 1) & (_WT == .) & `se'
-			replace _WT = (`iw'/`spW')*100 if (_ESAMPLE == 1) & (_WT == .) & !`se'
 		}
 		
 		estcovar, matrix(`coefmat') model(`getmodel') bcov(`bcov') wcov(`wcov') `design'
@@ -1022,6 +1034,7 @@ program define metadta, eclass sortpreserve byable(recall)
 		local tau2se 	= `BVari'[1, 1]
 		local tau2sp	= `BVari'[2, 2]
 		local tau2g		= (1 - (`BVari'[1, 2]/sqrt(`BVari'[1, 1]*`BVari'[2, 2]))^2)*`BVari'[1, 1]*`BVari'[2, 2]
+	
 			
 		if("`sumtable'" != "") {
 			local loddslabel = "Log_odds"
@@ -1092,7 +1105,7 @@ program define metadta, eclass sortpreserve byable(recall)
 		}
 		
 		local nmc = 0
-		if (`p' > 0  & "`mc'" == "") {
+		if (`p' > 0  & "`mc'" != "") {
 			forvalues j=1/2 {
 				local S_9`j' = .
 				local S_8`j' = .
@@ -1287,7 +1300,7 @@ program define metadta, eclass sortpreserve byable(recall)
 			}
 		}
 		if `nmc' == 0 {
-			local mc "nomc"
+			local mc 
 		}
 		
 		mat `BVari' = (`tau2se', `i2se', `tau2sp', `i2sp', `tau2g', `i2g', `tausesp', `rho')
@@ -1395,6 +1408,15 @@ program define metadta, eclass sortpreserve byable(recall)
 						local rlab:label `rightv' `rightlabel'
 						local rlab = ustrregexra("`rlab'", " ", "-")
 						local lab = "`rightv'_`rlab'"
+						
+						//abbreviate if NECESSARY
+						local lablen = strlen("`lab'")
+						if `lablen' > 32 {
+							local lab = abbrev("`lab'", 32)
+							if strpos("`lab'", "~") != 0 {
+								local lab = ustrregexra("`lab'", "~", "")
+							}
+						} 
 					}
 					
 					local vnames = "`vnames' `eqlab':`lab'"	
@@ -1453,6 +1475,7 @@ program define metadta, eclass sortpreserve byable(recall)
 			}
 			
 			//RR
+			local rr "norr"
 			if `pcat' > 0 | "`typevarx'" == "i" {
 				estr `strataif', estimates(metadta_modest) sumstat(`rrlabel')  cveffect(`cveffect') ///
 				catreg(`catreg') se(`se') level(`level') power(`power') dp(`dp') varx(`varx') ///
@@ -1489,9 +1512,8 @@ program define metadta, eclass sortpreserve byable(recall)
 				mat `popseorouti' = r(oroutmatrixse)
 				mat `popsporouti' = r(oroutmatrixsp)
 				mat `poporouti' = r(oroutmatrix)
-			}
-			else {
-				local rr "norr"
+				
+				local rr
 			}
 			
 			//Smooth estimates
@@ -1505,12 +1527,19 @@ program define metadta, eclass sortpreserve byable(recall)
 		}
 		*if one study
 		else { 
-			mat `absouti' = J(2, 6, 0)
-			mat `absoutsei' = J(1, 6, 0)
-			mat `absoutspi' = J(1, 6, 0)
+			mat `absouti' = J(2, 6, .)
+			mat `absoutsei' = J(1, 6, .)
+			mat `absoutspi' = J(1, 6, .)
+			mat rownames `absouti' = Sensitivitiy Specificity
+			mat rownames `absoutsei' = Sensitivitiy 
+			mat rownames `absoutspi' = Specificity
 			
 			mat `popabsoutsei' = J(1, 5, .)
 			mat `popabsoutspi' = J(1, 5, .)
+			mat `popabsouti' = J(2, 5, .)
+			mat rownames `popabsouti' = Sensitivitiy Specificity
+			mat rownames `popabsoutsei' = Sensitivitiy 
+			mat rownames `popabsoutspi' = Specificity			
 			
 			mat `exactabsoutsei' = J(1, 5, .)
 			mat `exactabsoutspi' = J(1, 5, .)
@@ -1536,12 +1565,12 @@ program define metadta, eclass sortpreserve byable(recall)
 			mat `sptestnlori' = J(1, 3, .)				
 			
 			mat `Vi' = J(2, 2, .) //var-cov for catreg & overall 
-			mat `logoddsi' = J(2, 6, 0)
-			mat `selogoddsi' = J(1, 6, 0)
-			mat `splogoddsi'	= J(1, 6, 0)
+			mat `logoddsi' = J(2, 6, .)
+			mat `selogoddsi' = J(1, 6, .)
+			mat `splogoddsi'	= J(1, 6, .)
 			mat	`BVari' = J(1, 8, .)
 			mat	`WVari' = J(1, 2, 0)
-			if ((`p' > 0 & "`design'" != "abnetwork") | (`p' > 1 & "`design'" == "abnetwork")) & "`mc'" == "" {
+			if ((`p' > 0 & "`design'" != "abnetwork") | (`p' > 1 & "`design'" == "abnetwork")) & "`mc'" != "" {
 				if "`cveffect'" != "sp" {
 					mat `semci'	= J(1, 3, .)
 				}
@@ -1617,7 +1646,7 @@ program define metadta, eclass sortpreserve byable(recall)
 		}
 		
 		if "`stratify'" != "" {
-			if ((`p' > 0 & "`design'" != "abnetwork") | (`p' > 1 & "`design'" == "abnetwork")) & "`mc'" == "" {
+			if ((`p' > 0 & "`design'" != "abnetwork") | (`p' > 1 & "`design'" == "abnetwork")) & "`mc'" != "" {
 				if "`cveffect'" != "sp" {
 					mat roweq `semci' = `byrowname'
 				}
@@ -1673,7 +1702,7 @@ program define metadta, eclass sortpreserve byable(recall)
 			*mat `bghet' = `bgheti'
 			mat `refe' = `refei'
 			*mat `Isq2' =  `Isq2i'
-			if ((`p' > 0 & "`design'" != "abnetwork") | (`p' > 1 & "`design'" == "abnetwork")) & "`mc'" == "" {
+			if ((`p' > 0 & "`design'" != "abnetwork") | (`p' > 1 & "`design'" == "abnetwork")) & "`mc'" != "" {
 				if "`cveffect'" != "sp" {
 					mat `semc'	= `semci'
 				}
@@ -1721,12 +1750,13 @@ program define metadta, eclass sortpreserve byable(recall)
 				}
 			}
 			mat `BVar' = `BVar' \ `BVari'
+			
 			mat `WVar' = `WVar' \ `WVari'
 			mat `V' = `V' \ `Vi' 
 			mat `logodds' = `logodds' \ `logoddsi'
 			mat `selogodds' = `selogodds' \ `selogoddsi'
 			mat `splogodds' = `splogodds' \ `splogoddsi'
-			if ((`p' > 0 & "`design'" != "abnetwork") | (`p' > 1 & "`design'" == "abnetwork")) & "`mc'" == "" {
+			if ((`p' > 0 & "`design'" != "abnetwork") | (`p' > 1 & "`design'" == "abnetwork")) & "`mc'" != "" {
 				if "`cveffect'" != "sp" {
 					mat `semc'	= `semc' \ `semci'
 				}
@@ -1841,7 +1871,7 @@ program define metadta, eclass sortpreserve byable(recall)
 			}
 		}
 		
-		if "`mc'" =="" {
+		if "`mc'" !="" {
 			if "`confariates'" != "" {
 				di as res _n "**************************************************************************" 
 				di as txt "Fitted reduced models for comparisons"	
@@ -1905,7 +1935,7 @@ program define metadta, eclass sortpreserve byable(recall)
 			mat rownames `splogodds' = `bybirownames'
 		}
 		*/
-		if "`mc'" == "" {
+		if "`mc'" != "" {
 			mat `semc' = `semcrow' \ `semc'
 			mat `spmc' = `spmcrow' \ `spmc'	
 		}		
@@ -1988,10 +2018,11 @@ program define metadta, eclass sortpreserve byable(recall)
 			mat colnames `poporout' = Mean SE Median Lower Upper
 			mat colnames `popseorout' = Mean SE Median Lower Upper
 			mat colnames `popsporout' = Mean SE Median Lower Upper
-			
 		}
 		
 		mat rownames `BVar' = `byrownames'
+		mat colnames `BVar' = sensitivity:tausq sensitivity:isq specificity:tausq specificity:isq Generalized:tausq Generalized:isq covar rho 
+		
 		mat rownames `refe' = `byrownames'
 		*mat coleq `spmc' = `byrownames'
 		*mat coleq `semc' = `byrownames'
@@ -2177,7 +2208,10 @@ program define metadta, eclass sortpreserve byable(recall)
 	//Prepare data for display
 	gen `use' = 1  //Individual studies
 	
-	prep4show `id' `se' `use' `neolabel' `es' `lci' `uci' `modeles' `modellci' `modeluci', ///
+	//identifier as ordered  by ES
+	qui gen `cid' = .	
+	
+	prep4show `id' `cid' `se' `use' `neolabel' `es' `lci' `uci' `modeles' `modellci' `modeluci', ///
 		sortby(`sortby') groupvar(`groupvar') grptotal(`grptotal') 	cveffect(`cveffect') ///
 		outplot(`outplot') serrout(`serrout') popserrout(`popserrout') popseorout(`popseorout') ///
 		absoutse(`absoutse') absoutsp(`absoutsp') popabsoutse(`popabsoutse') popabsoutsp(`popabsoutsp') exactabsoutse(`exactabsoutse') exactabsoutsp(`exactabsoutsp')    ///
@@ -2240,7 +2274,7 @@ program define metadta, eclass sortpreserve byable(recall)
 		printmat, matrixout(`poporout') type(popor) dp(`dp') power(`power') cveffect(`cveffect') nsims(`nsims') level(`level')		
 	}	
 	//model comparison
-	if ((`p' > 0 & "`design'" != "abnetwork") | (`p' > 1 & "`design'" == "abnetwork")) & ("`mc'" =="") {
+	if ((`p' > 0 & "`design'" != "abnetwork") | (`p' > 1 & "`design'" == "abnetwork")) & ("`mc'" !="") {
 		printmat, matrixoutse(`semc') matrixoutsp(`spmc') type(mc) dp(`dp') cveffect(`cveffect')
 	}
 	/*
@@ -2251,6 +2285,8 @@ program define metadta, eclass sortpreserve byable(recall)
 	*/
 	//Display the studies
 	if "`itable'" == "" {
+		sort `id'
+		
 		disptab `id' `se' `use' `neolabel' `es' `lci' `uci' `grptotal' `modeles' `modellci' `modeluci', `itable' dp(`dp') power(`power') ///
 			`subgroup' `overall' `summaryonly' sumstatse(`sumstatse') sumstatsp(`sumstatsp')  	///
 			isq2(`isq2') bghet(`bghet') bshet(`bshet') model(`model') bvar(`BVar') 	///
@@ -2260,10 +2296,22 @@ program define metadta, eclass sortpreserve byable(recall)
 	
 	//Draw the forestplot
 	if "`fplot'" == "" {
-		fplot `es' `lci' `uci' `use' `neolabel' `grptotal' `id' `se' `modeles' `modellci' `modeluci', ///	
+		sort `id'
+		
+		dtaplot `es' `lci' `uci' `use' `neolabel' `grptotal' `id' `se' `modeles' `modellci' `modeluci', ///	
 			studyid(`studyid') power(`power') dp(`dp') level(`level') cveffect(`cveffect')  ///
-			groupvar(`groupvar') `smooth' `wt' `box'  `summaryonly' ///
+			groupvar(`groupvar') `smooth' `wt' `box'  `summaryonly' type(fplot) ///
 			outplot(`outplot') lcols(`lcols') `foptions' `design' varxlabs(`varxlabs')
+	}
+	
+	//Draw the catpplot
+	if "`catpplot'" != "" {
+		sort `cid'
+		
+		dtaplot `es' `lci' `uci' `use' `neolabel' `grptotal' `cid' `se' `modeles' `modellci' `modeluci', ///	
+			studyid(`studyid') power(`power') dp(`dp') level(`level') cveffect(`cveffect')  ///
+			groupvar(`groupvar') `smooth' `wt' `box'  `summaryonly' type(catpplot) ///
+			outplot(`outplot') lcols(`lcols') `coptions' `design' varxlabs(`varxlabs')
 	}
 	
 	//Draw the SROC curve
@@ -2287,7 +2335,7 @@ program define metadta, eclass sortpreserve byable(recall)
 	}
 																																
 	cap ereturn clear
-	if ((`p' > 0 & "`design'" != "abnetwork") |(`p' > 1 & "`design'" == "abnetwork")) & "`mc'" == "" {
+	if ((`p' > 0 & "`design'" != "abnetwork") |(`p' > 1 & "`design'" == "abnetwork")) & "`mc'" != "" {
 		cap confirm matrix `semc'
 		if _rc == 0 {
 			ereturn matrix mctestse = `semc' //model comparison se
@@ -2469,7 +2517,7 @@ program define fitmodel, rclass
 		local exactest = 0
 		
 		if "`wcov'" != "" {
-			local nested = `"|| (`nested'`ipair': `3' `4', noc cov(`wcov'))"'
+			local nested = `"|| (`nested'`ipair': `3' `4', noconstant cov(`wcov'))"'
 		}
 		else {
 			local nested
@@ -2510,7 +2558,7 @@ program define fitmodel, rclass
 					local iterate = `"iterate(30)"'
 				}
 				else {
-					local iterate = `"iterate(100)"'
+					local iterate = `"iterate(50)"'
 				}
 			}
 			if strpos(`"`modelopts'"', "intpoi") == 0  {
@@ -2528,7 +2576,7 @@ program define fitmodel, rclass
 			  binomial(`2') `modelopts' `intopts' `iterate'  l(`level');
 			#delimit cr 
 			
-			local success = _rc
+			local success = e(rc)
 			local converged = e(converged)
 			
 			//Got to meqrlogit if melogit fails
@@ -2541,10 +2589,10 @@ program define fitmodel, rclass
 					#delim ;
 					capture noisily `fitcommand' (`1' `regexpression' if `touse', noconstant )|| 
 					  (`sid': `re', noconstant `cov') `nested',
-					  binomial(`2') `modelopts' `intopts' `iterate'  l(`level');
+					  binomial(`2')  `intopts' `iterate'  l(`level');
 					#delimit cr 
 					
-					local success = _rc
+					local success = e(rc)
 					local converged = e(converged)
 			}
 			
@@ -2555,7 +2603,7 @@ program define fitmodel, rclass
 				noi di   "*********************************** ************* ***************************************" 
 				local ++try
 				capture noisily binreg `1' `regexpression' if `touse', noconstant n(`2') ml  
-				local success = _rc
+				local success = e(rc)
 				if _rc == 0 {				
 					qui estimates table
 					mat `coefs' = r(coef)
@@ -2609,7 +2657,7 @@ program define fitmodel, rclass
 				  binomial(`2') `inits' `intopts' `iterate'  l(`level') matlog laplace;
 				#delimit cr 
 				
-				local success = _rc
+				local success = e(rc)
 				local converged = e(converged)
 				if _rc == 0 {
 					//Get the new estimates
@@ -2673,70 +2721,30 @@ program define fitmodel, rclass
 				
 				mat `initmat' = (`inits')	
 				local inits = `"from(`initmat', copy)"'
+				
+				if strpos(`"`modelopts'"', "refineopts") == 0 {				
+					local refine "refineopts(iterate(20))"
+				}
+				if (strpos(`"`modelopts'"', "matlog") == 0) {
+					local matlog "matlog"
+				}				
 
 				//Final fit
 				local ++try
 				#delim ;
 				capture noisily `fitcommand' (`1' `regexpression' if `touse', noc )|| 
 				  (`sid': `re', noc `cov') `nested',
-				  binomial(`2') `inits' `modelopts' `intopts' `iterate'  l(`level');
+				  binomial(`2') `inits' `intopts' `iterate' `refine' `matlog'  l(`level');
 				#delimit cr 
 				
-				local success = _rc
+				local success = e(rc)
 				local converged = e(converged)
-			}
-			*==========================================================================
-			if "`fitcommand'" == "meqrlogit" {				
-				//Try to refineopts 2 times
-				if strpos(`"`modelopts'"', "refineopts") == 0 {				
-					if (`try' < 7) & ((`converged' == 0) | (`success' != 0)) {
-						local ++try 
-						local refine "refineopts(iterate(`=10 * `try''))"
-						#delim ;					
-						capture noisily `fitcommand' (`1' `regexpression' if `touse', noc )|| 	
-								(`sid': `re', noc `cov') `nested',						
-								binomial(`2') `modelopts' l(`level') `refine' `intopts' `iterate' ;
-						#delimit cr 
-						
-						local success = _rc
-						
-						local converged = e(converged) 
-					}
-				}
-			}
-			*==========================================================================
-			/*if "`fitcommand'" == "meqrlogit" {
-				*Try matlog if still difficult
-				if (strpos(`"`modelopts'"', "matlog") == 0) {
-					local matlog "matlog"
-				}
-			}
-			else {
-				*Try difficult if still difficult
-				if (strpos(`"`modelopts'"', "difficult") == 0) {
-					local difficult "difficult"
-				}
-				if strpos(`"`modelopts'"', "(iterate") == 0 {
-					local iterate = `"iterate(200)"'
-				}
-			}
-			if ((`converged' == 0) | (`success' != 0)) {
-				local ++try 
-				#delim ;
-				capture noisily `fitcommand' (`1' `regexpression' if `touse', noc )|| 
-					(`sid': `re', noc `cov') `nested',
-					binomial(`2') `modelopts' l(`level') `refine' `matlog' `difficult' `intopts' `iterate' ;
-				#delimit cr
-				
-				local success = _rc				
-				local converged = e(converged)
-			}*/
-			
+			}			
 		}
 		//Revert to FE if ME fails
 		if (`success' != 0) & ("`model'" == "random") {
 			capture noisily binreg `1' `regexpression' if `touse', noconstant n(`2') ml  l(`level')
-			local success = _rc
+			local success = e(rc)
 			local model "fixed"
 		}		
 		
@@ -2909,15 +2917,16 @@ program define prep4show
 	tokenize `varlist'
 	 
 	local id = "`1'"
-	local se = "`2'" 
-	local use = "`3'"
-	local label = "`4'"
-	local es = "`5'"
-	local lci = "`6'"
-	local uci = "`7'"
-	local modeles = "`8'"
-	local modellci = "`9'"
-	local modeluci = "`10'"
+	local cid = "`2'"
+	local se = "`3'" 
+	local use = "`4'"
+	local label = "`5'"
+	local es = "`6'"
+	local lci = "`7'"
+	local uci = "`8'"
+	local modeles = "`9'"
+	local modellci = "`10'"
+	local modeluci = "`11'"
 	qui {
 		gen `sp' = 1 - `se'
 
@@ -3223,6 +3232,11 @@ program define prep4show
 		gsort `se' `groupvar' `sortby'  `id' 
 		bys `se' : replace `id' = _n 
 		gsort `id' `se' 
+		
+		gsort `se' `groupvar' `use' -`es'
+		bys `se' : replace `cid' = _n 
+		
+		
 	}
 end	
 
@@ -4491,7 +4505,10 @@ end
 			}
 		}
 		*if "`by'`comparator'" != ""  {
-			local confounders "`by' `catreg'"
+		local confounders "`by' `catreg'"
+		if "`'" ! = "" {
+			local confounders : list uniq confounders
+		}
 		/*}
 		else {
 			local confounders "`catreg'"
@@ -4962,11 +4979,9 @@ cap program drop estcovar
 program define estcovar, rclass
 
 
-	syntax, matrix(name) model(string) [ bcov(string) wcov(string) abnetwork cbnetwork comparative general ]
+	syntax,  model(string) [matrix(name)  bcov(string) wcov(string) abnetwork cbnetwork comparative general ]
 	*matrix is colvector
 	tempname matcoef BVar WVar
-	mat `matcoef' = `matrix''
-	local nrows = rowsof(`matcoef')
 	*Initialize - Default
 	mat	`BVar' = (0, 0\ ///
 				0, 0)
@@ -4976,6 +4991,9 @@ program define estcovar, rclass
 	local w = 0	
 	
 	if "`model'" == "random" {
+		mat `matcoef' = `matrix''
+		local nrows = rowsof(`matcoef')
+	
 		*WVAR
 		if "`wcov'" != "" {
 			if strpos("`wcov'", "ind") != 0 {
@@ -5246,6 +5264,90 @@ end
 						local uprr = `rr' * exp(`zstar' * sqrt(`varhat'))
 					}
 				}
+				if ("`method'" == "asinh") {
+					if ((`n1' == 0 & `n2' == 0) | (`n1' == 0 & `n2' != 0) | (`n1' != 0 & `n2' == 0) | (`n1' == `N1' & `n2' == `N2')) {
+						if (`n1' == 0 & `n2' == 0) {
+						  local lorr = 0
+						  local uprr = .
+						  local rr = 0
+						  local varhat = .
+						}
+						if (`n1' = 0 & `n2' != 0) {
+						  local rr = (`n1'/`N1')/(`n2'/`N2')
+						  local lorr = 0
+						  local n1 = `zstar'
+						  local nrr = (`n1'/`N1')/(`n2'/`N2')
+						  local varhat = 2 * asinh((`zstar'/2) * sqrt(1/`n1' + 1/`n2' - 1/`N1' - 1/`N2'))
+						  local uprr = exp(log(`nrr') + `varhat')
+						}
+						if (`n1' != 0 & `n2' == 0) {
+						  local rr = .
+						  local uprr = .
+						  local n2 = `zstar'
+						  local nrr = (`n1'/`N1')/(`n2'/`N2')
+						  local varhat = 2 * asinh((`zstar'/2) * sqrt(1/`n1' + 1/`n2' - 1/`N1' - 1/`N2'))
+						  local lorr = exp(log(`nrr') - `varhat')
+						}
+						if (`n1' = `N1' & `n2' == `N2') {
+						  local rr = (`n1'/`N1')/(`n2'/`N2')
+						  `n1' = `N1' - 0.5
+						  `n2' = `N2' - 0.5
+						  local nrr = (`n1'/`N1')/(`n2'/`N2')
+						  local varhat = 2 * asinh((`zstar'/2) * sqrt(1/`n1' + 1/`n2' - 1/`N1' - 1/`N2'))
+						  local lorr = exp(log(`nrr') - `varhat')
+						  local uprr = exp(log(`nrr') + `varhat')
+						}
+					}
+					else {
+						local rr = (`n1'/`N1')/(`n2'/`N2')
+						local varhat = 2 * asinh((`zstar'/2) * sqrt(1/`n1' + 1/`n2' - 1/`N1' - 1/`N2'))
+						local lorr = exp(log(`rr') - `varhat')
+						local uprr = exp(log(`rr') + `varhat')
+					}
+				}
+				if ("`method'" == "noether") {
+					if ((`n1' == 0 & `n2' == 0) | (`n1' == 0 & `n2' != 0) | (`n1' != 0 & `n2' == 0) | (`n1' == `N1' & `n2' == `N2')) {
+						if (`n1' == 0 & `n2' == 0) {
+						  local lorr = 0
+						  local uprr = .
+						  local rr = 0
+						  local sehat = .
+						  local varhat = .
+						}
+						if (`n1' == 0 & `n2' != 0) {
+						  local rr = (`n1'/`N1')/(`n2'/`N2')
+						  local lorr = 0
+						  local n1 = 0.5
+						  local nrr = (`n1'/`N1')/(`n2'/`N2')
+						  local sehat = `nrr' * sqrt((1/`n1') - (1/`N1') + (1/`n2') - (1/`N2'))
+						  local uprr = `nrr' + `zstar' * `sehat'
+						}
+						if (`n1' != 0 & `n2' == 0) {
+						  local rr = Inf
+						  local uprr = Inf
+						  local n2 = 0.5
+						  local nrr = (`n1'/`N1')/(`n2'/`N2')
+						  local  sehat = `nrr' * sqrt((1/`n1') - (1/`N1') + (1/`n2') - (1/`N2'))
+						  local lorr = `nrr' - `zstar' * `sehat'
+						}
+						if (`n1' == `N1' & `n2' == `N2') {
+						  local rr = (`n1'/`N1')/(`n2'/`N2')
+						  local n1 = `N1' - 0.5
+						  local n2 = `N2' - 0.5
+						  local nrr = (`n1'/`N1')/(`n2'/`N2')
+						  local sehat = `nrr' * sqrt((1/`n1') - (1/`N1') + (1/`n2') - (1/`N2'))
+						  local uprr = `nrr' + `zstar' * `sehat'
+						  local lorr = `nrr' - `zstar' * `sehat'
+						}
+					}
+					else {
+						local rr = (`n1'/`N1')/(`n2'/`N2')
+						local sehat = `rr'* sqrt((1/`n1') - (1/`N1') + (1/`n2') - (1/`N2'))
+						local lorr = `rr' - `zstar' * `sehat'
+						local uprr = `rr' + `zstar' * `sehat'
+					}
+					local lorr = max(0, `lorr')
+				}
 				
 				replace `r' = `rr' in `i'
 				replace `lowerci' = `lorr' in `i'
@@ -5329,10 +5431,10 @@ end
 
 	end
 /*	SUPPORTING FUNCTIONS: FPLOTCHECK ++++++++++++++++++++++++++++++++++++++++++
-			Advance housekeeping for the fplot
+			Advance housekeeping for the dtaplot
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
-	capture program drop fplotcheck
-	program define fplotcheck, rclass
+	capture program drop dtaplotcheck
+	program define dtaplotcheck, rclass
 		
 	#delimit ;
 	syntax  [,
@@ -5343,7 +5445,7 @@ end
 		general
 		noWT
 		noBOx
-		/*passed via foptions*/
+		/*passed via options*/
 		
 		AStext(integer 50) 				
 		CIOpt(passthru) 
@@ -5425,19 +5527,19 @@ end
 	if "`texts'" != "" {
 		local texts "texts(`texts')"
 	}
-	local foptions `"`astext' `ciopt' `diamopt' `arrowopt' `double' `ovline' `stats' `wt' `box' `olineopt' `plotstat' `pointopt' `boxopts' `subline' `texts' `xlabel' `xtick' `grid' `xline'  `logscale' `graphsave' `options'"'
+	local plotoptions `"`astext' `ciopt' `diamopt' `arrowopt' `double' `ovline' `stats' `wt' `box' `olineopt' `plotstat' `pointopt' `boxopts' `subline' `texts' `xlabel' `xtick' `grid' `xline'  `logscale' `graphsave' `options'"'
 	return local outplot = "`outplot'"
 	return local lcols ="`lcols'"
-	return local foptions = `"`foptions'"'
+	return local plotoptions = `"`plotoptions'"'
 end
 
-/*	SUPPORTING FUNCTIONS: FPLOT ++++++++++++++++++++++++++++++++++++++++++++++++
-			The forest plot
+/*	SUPPORTING FUNCTIONS: DTAPLOT ++++++++++++++++++++++++++++++++++++++++++++++++
+			The forest/catterpillar plot
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 // Some re-used code from metaprop
 
-	capture program drop fplot
-	program define fplot
+	capture program drop dtaplot
+	program define dtaplot
 		
 	#delimit ;
 	syntax varlist [if] [in] [,
@@ -5455,7 +5557,8 @@ end
 		varxlabs(string)
 		/*passed from within*/	
 		Groupvar(varname)
-		/*passed via foptions*/
+		type(string)
+		/*passed via plotoptions*/
 		AStext(string)
 		ARRowopt(string) 		
 		CIOpt(string) 
@@ -5484,12 +5587,12 @@ end
 	  ];
 	#delimit cr
 	
-	local foptions `"`options'"'
-	if strpos(`"`foptions'"', "graphregion") == 0 {
-			local foptions `"graphregion(color(white) margin(medium))  `foptions'"'
+	local plotopts `"`options'"'
+	if strpos(`"`plotopts'"', "graphregion") == 0 {
+			local plotopts `"graphregion(color(white) margin(medium))  `plotopts'"'
 	}
-	if strpos(`"`foptions'"', "plotregion") == 0 {
-			local foptions `"plotregion(margin(zero)) `foptions'"'
+	if strpos(`"`plotopts'"', "plotregion") == 0 {
+			local plotopts `"plotregion(margin(zero)) `plotopts'"'
 		}
 	
 	tempvar es lci uci modeles modellci modeluci use label tlabel id newid se  df  expand orig ///
@@ -6503,15 +6606,22 @@ end
 	local diamondcommand3 "(pcspike `DIAMrightY2' `DIAMrightX' `DIAMbottomY' `DIAMbottomX' if (`use' == 2 | `use' == 3) , `diamopt')"
 	local diamondcommand4 "(pcspike `DIAMbottomY' `DIAMbottomX' `DIAMleftY2' `DIAMleftX' if (`use' == 2 | `use' == 3) , `diamopt')"
 	
-	//Give name if none
-	if strpos(`"`foptions'"',"name(") == 0 {
-		local fname = "name(fplot, replace)"
+		//Give name if none
+	if "`type'" == "fplot" {
+		local fullname "forest"
 	}
-	if "$by_index_" != "" {
-		local fname = "name(fplot" + "$by_index_" + ", replace)"
-		noi di as res _n  "NOTE: forest plot name -> fplot$by_index_"
+	else {
+		local fullname "caterpillar"
 	}
 	
+	if strpos(`"`plotopts'"',"name") == 0 {
+		local plotname = "name(`type', replace)"
+	}
+	if "$by_index_" != "" {
+		local plotname = "name(`type'" + "$by_index_" + ", replace)"
+		noi di as res _n  "NOTE: `fullname' plot name -> `type'$by_index_"
+	}
+		
 	
 	#delimit ;
 	twoway
@@ -6552,7 +6662,7 @@ end
 		(scatter `id'  `es'  if `use' == 1 , `pointopt') 
 		`smoothcommands2' 
 		`overallCommand1' `overallCommand2'	
-		,`foptions' `fname'
+		,`plotopts' `fname'
 		;
 		#delimit cr		
 			
@@ -6687,12 +6797,8 @@ end
 		/*Options*/
 		// CI options
 		if `"`ciopt'"' == "" {
-			if "`model'" == "random" {
-				local ciopt "lpattern(dash)"
-			}
-			else {
-				local ciopt "lpattern(solid)"
-			}
+			local ciopt "lpattern(dash)"
+			local krossopt "lpattern(solid)"
 		}
 		else {
 			local forbidden "lcolor"
@@ -6815,16 +6921,16 @@ end
 			local nrowsv = rowsof(`v')
 			local ncolsv = colsof(`v')
 			local layer = `=`nrowsv'/(`nlevels'*2)'
-	
+				
 			mat `bvari' = (`bvar'[1 ,1], `bvar'[1, 7] \ `bvar'[1, 7], `bvar'[1, 3])
-			
+						
 			forvalues j=1/`nlevels' {
 				if `p' == 0 & `nlevels' == 1 {
 					local shiftindex 0
 				}
 				*Take out the right matrices
-				local seindex = `=`j'+`shiftindex''
-				local spindex = `=`j'+`shiftindex''
+				local seindex = `=`j' + `shiftindex''
+				local spindex = `=`j' + `shiftindex''
 
 				if (`p' == 1){					
 					mat `vi' = (`v'[`=`nlevels' + `j'', `=`nlevels' + `j''],  `v'[`j', `=`nlevels' + `j''] \ `v'[`j', `=`nlevels' + `j''], `v'[`j', `j'])	
@@ -6847,7 +6953,7 @@ end
 					local seindex = `=`j'*`layerse' + `shiftindex''
 					local spindex = `=`j'*`layersp' + `shiftindex''
 				}
-				
+								
 				if "`cveffect'" == "sp" | `p' > 1 {
 					local seindex  = `nrowse'
 				}
@@ -6871,6 +6977,9 @@ end
 					
 					qui summ `se' if `gvar' == `j'
 					local muy`j' = r(mean)
+					
+					local popmux`j' = `mux`j''
+					local popmuy`j' = `muy`j''
 				}
 				local centre `"`centre' (scatteri `muy`j'' `mux`j'', mcolor(`color') `opointopt')"'
 				if `nlevels' == 1 {
@@ -6878,7 +6987,8 @@ end
 					local legendlabel `"lab(`index' "Summary point") `legendlabel'"'
 					local legendorder `"`index'  `legendorder'"'				
 				}
-				if "`popest'" == "" {
+				
+				if "`popest'" == "" { 
 					local popcentre `"`popcentre' (scatteri `popmuy`j'' `popmux`j'', mcolor(`color') `popopointopt')"'
 					
 					if `nlevels' == 1 {
@@ -6888,7 +6998,7 @@ end
 					}
 				}
 				//Crosses
-				if "`model'" == "fixed" | (r(N) < 3 & "`model'" == "random" ){ 
+				if ("`model'" == "fixed")| (r(N) < 3 & "`model'" == "random" ){ 
 					if r(N) > 1 {
 						local leftX`j' = 1 - invlogit(`splogodds'[`spindex', 6])
 						local leftY`j' = invlogit(`selogodds'[`seindex', 1])
@@ -6919,7 +7029,8 @@ end
 						qui summ `seuci' if `gvar' == `j'
 						local bottomY`j' =  r(mean)
 					}
-					local kross `"`kross' (pci `leftY`j'' `leftX`j'' `rightY`j'' `rightX`j'', lcolor(`color') `ciopt') (pci `topY`j'' `topX`j'' `bottomY`j'' `bottomX`j'', lcolor(`color') `ciopt') "'
+					
+					local kross `"`kross' (pci `leftY`j'' `leftX`j'' `rightY`j'' `rightX`j'', lcolor(`color') `krossopt') (pci `topY`j'' `topX`j'' `bottomY`j'' `bottomX`j'', lcolor(`color') `krossopt') "'
 					if `nlevels' == 1 {
 						local ++index
 						local legendlabel `"lab(`index' "Confidence intervals") `legendlabel'"'
@@ -6928,7 +7039,7 @@ end
 					}
 				}
 				else {
-				//Confidence & prediction ellipses
+					//Confidence & prediction ellipses
 					
 					if !`already' {
 						qui set obs 500
@@ -6942,7 +7053,7 @@ end
 					tempvar fpr`j' sp`j' se`j' xcregion`j' ycregion`j' xpregion`j' ypregion`j'
 					
 					range `fpr`j'' `min`j'' `max`j''
-					gen `sp`j'' = 1 - `fpr`j''
+					gen `sp`j'' = 1 - `fpr`j'' if `gvar' == `j' 
 					
 					/*HsROC parameters*/
 					local b = (sqrt(`bvari'[2,2])/sqrt(`bvari'[1,1]))^0.5
@@ -6956,7 +7067,7 @@ end
 
 					/*The curves*/
 					if "`curve'" =="" {
-						gen `se`j'' = invlogit(`lambda' * exp(-`beta' / 2) + exp(-`beta') * logit(`fpr`j''))
+						gen `se`j'' = invlogit(`lambda' * exp(-`beta' / 2) + exp(-`beta') * logit(`fpr`j'')) if `gvar' == `j' 
 						local sroc "`sroc' (line `se`j'' `fpr`j'', lcolor(`color') `curveopt')"
 						if `nlevels' == 1 {
 							local ++index
@@ -7806,11 +7917,27 @@ program define postsim, rclass
 							gen `simsreffsse' = exp(`simwvarse') 
 							gen `simsreffssp' = exp(`simwvarsp')
 						}
+						//Truncate to 0
+						if "`predcmd'" == "melogit_p" {
+							gen `simsreffsse' = sqrt(`simwvarse') 
+							replace `simsreffsse' = 0 if  `simwvarse' <0
+							
+							gen `simsreffssp' = sqrt(`simwvarsp')
+							replace `simsreffssp' = 0 if  `simwvarsp' < 0
+						}
 					}
 					else if strpos("`wcov'", "id") != 0 {
 						if "`predcmd'" == "meqrlogit_p" {
 							gen `simsreffsse' = exp(`simwvars') 
 							gen `simsreffssp' = exp(`simwvars')
+						}
+						//Truncate to 0
+						if "`predcmd'" == "melogit_p" {
+							gen `simsreffsse' = sqrt(`simwvars')
+							replace `simsreffsse' = 0 if  `simwvars' <0
+							
+							gen `simsreffssp' = sqrt(`simwvars')
+							replace `simsreffssp' = 0 if  `simwvars' < 0
 						}
 					}
 			}
