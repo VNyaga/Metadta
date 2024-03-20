@@ -761,7 +761,7 @@ program define metadta, eclass sortpreserve byable(recall)
 	} 
 	
 	//Replace population-averaged estimates with Conditional/exact estimates if model has issues e.g complete seperation etc
-	if "`stratify'" != ""  {
+	if "`stratify'" != "" & `p' < 1  {
 		local enhance "enhance"		
 	}
 	
