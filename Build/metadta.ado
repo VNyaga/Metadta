@@ -120,7 +120,7 @@ program define metadta, eclass sortpreserve byable(recall)
 
 	tempvar rid se sp event total invtotal use id cid neolabel es lci uci ///
 			modeles modellci modeluci grptotal uniq rowid obsid ///
-			newobs predevent iw pairid
+			newobs predevent iw pairid hold subset
 			
 	tempname logodds absout popabsout logoddsi absouti popabsouti rrout rrouti sptestnlrr setestnlrr sptestnlrri setestnlrri ///
 		orout orouti sptestnlor setestnlor sptestnlori setestnlori selogodds absoutse popabsoutse selogoddsi ///
@@ -129,8 +129,8 @@ program define metadta, eclass sortpreserve byable(recall)
 		sprrout sprrouti sporout sporouti popsprrout popsprrouti popsporout popsporouti  ///
 		coefmat coefvar BVar BVari WVar WVari Esigma omat isq2 isq2i Isq Isq2 Isq2i absexact  absexactse absexactsp ///
 		bghet refe bgheti refei lrtestp V Vi dftestnl ptestnl semc semci spmc spmci samtrix semcrow spmcrow ///
-		serow sprow  pserow psprow postserow postsprow serrow sprrow pserrow psprrow nltestrr cutmat nltestor matgof matgofi ///
-		exactabsoutsei exactabsoutspi exactabsoutse exactabsoutsp exactabsout
+		serow sprow eserow esprow pserow psprow postserow postsprow serrow sprrow pserrow psprrow nltestrr cutmat nltestor matgof matgofi ///
+		seexactabsoutii spexactabsoutii seexactabsouti spexactabsouti seexactabsout spexactabsout exactabsout
 	
 	if _by() {
 		global by_index_ = _byindex()
@@ -461,9 +461,14 @@ program define metadta, eclass sortpreserve byable(recall)
 			local cimethod "CML"
 		}
 		if ("`design'" == "pcbnetwork" | "`design'" == "comparative") & "`outplot'" == "rr"   {
-			if ("`cimethod'" != "")  {
-				if (strpos("`cimethod'", "ka") != 1) & (strpos("`cimethod'", "koo") != 1) & (strpos("`cimethod'", "bai") != 1) & (strpos("`cimethod'", "adlog") != 1) {
-					di as error "Option `cimethod' not allowed in cimethod(`cimethod')"
+			if ("`icimethod'" != "") {
+				if (strpos("`icimethod'", "koo") != 1) & 	///
+				(strpos("`icimethod'", "ka") != 1) & 		///
+				(strpos("`icimethod'", "bail") != 1) & 		///
+			    (strpos("`icimethod'", "asin") != 1) & 		///	
+				(strpos("`icimethod'", "noe") != 1) &		///				
+				(strpos("`icimethod'", "adlo") != 1) {
+					di as error "Option `icimethod' not allowed in cimethod(`cimethod')"
 					exit	
 				}
 			}
@@ -761,9 +766,9 @@ program define metadta, eclass sortpreserve byable(recall)
 	} 
 	
 	//Replace population-averaged estimates with Conditional/exact estimates if model has issues e.g complete seperation etc
-	if "`stratify'" != "" & `p' < 1  {
+	*if "`stratify'" != "" & `p' < 1  {
 		local enhance "enhance"		
-	}
+	*}
 	
 	*Stratify not allow in cbnetwork or abnetwork analysis
 	if "`stratify'" != "" {
@@ -831,16 +836,15 @@ program define metadta, eclass sortpreserve byable(recall)
 		local sumstatse "Sensitivity"
 		local sumstatsp "Specificity"
 	}
-	else {
-		if "`outplot'" == "or"  {
-			local sumstatse "Sensitivity OR"
-			local sumstatsp "Specificity OR"
-		}
-		else {
-			local sumstatse "Relative Sensitivity"
-			local sumstatsp "Relative Specificity"
-		}
+	else if "`outplot'" == "or"  {
+		local sumstatse "Sensitivity OR"
+		local sumstatsp "Specificity OR"
 	}
+	else if "`outplot'" == "rr"  {
+		local sumstatse "Relative Sensitivity"
+		local sumstatsp "Relative Specificity"
+	}
+	
 	
 	//Should run atleast once
 	while `i' < `=`nlevels' + 2' {
@@ -944,10 +948,14 @@ program define metadta, eclass sortpreserve byable(recall)
 		}		
 	
 		*Run model if more than 1 study
-		if `Nobs' > 1 {			
+		if `Nobs' > 1 {
+			if "`inference'" == "bayesian" {
+				local bayesreps = "`bwd'\metadta_bayesreps"
+				local bayesest = "`bwd'\metadta_bayesest"
+			}
 			//Requested model
 			`echo' fitmodel `event' `total' `se' `sp' `strataif', bcov(`bcov') wcov(`wcov') modelopts(`modeloptsi') model(`modeli') ///
-			regexpression(`regexpression') sid(`studyid') `design' ipair(`ipair') level(`level') nested(`first')
+			regexpression(`regexpression') sid(`studyid') `design' ipair(`ipair') level(`level') nested(`first') `progress'
 			
 			//Returned model	
 			local getmodel = r(model)
@@ -1167,7 +1175,7 @@ program define metadta, eclass sortpreserve byable(recall)
 					
 					local nullse = "`nullse' `spregexpression'"
 					`echo' fitmodel `event' `total' `se' `sp' `strataif',  bcov(`bcov') wcov(`wcov') modelopts(`modeloptsi') model(`getmodel') ///
-					regexpression(`nullse') sid(`studyid') `design' ipair(`ipair') level(`level') nested(`first')
+					regexpression(`nullse') sid(`studyid') `design' ipair(`ipair') level(`level') nested(`first') `progress'
 					
 					estimates store metadta_Nullse
 					
@@ -1217,7 +1225,7 @@ program define metadta, eclass sortpreserve byable(recall)
 					*/
 					local nullsp = "`seregexpression' `nullsp'" 
 					`echo' fitmodel `event' `total' `se' `sp' `strataif', bcov(`bcov') wcov(`wcov') modelopts(`modeloptsi') model(`getmodel') ///
-					regexpression(`nullsp') sid(`studyid') `design' ipair(`ipair') level(`level') nested(`first')
+					regexpression(`nullsp') sid(`studyid') `design' ipair(`ipair') level(`level') nested(`first') `progress'
 					estimates store metadta_Nullsp
 					
 					//LR test the model
@@ -1245,7 +1253,7 @@ program define metadta, eclass sortpreserve byable(recall)
 					local nullse `se'		
 					local nullse = "`nullse' `spregexpression'"
 					`echo' fitmodel `event' `total' `se' `sp' `strataif',  bcov(`bcov') wcov(`wcov') modelopts(`modeloptsi') model(`getmodel') regexpression(`nullse') ///
-					sid(`studyid') `design' ipair(`ipair') level(`level') nested(`first')
+					sid(`studyid') `design' ipair(`ipair') level(`level') nested(`first') `progress'
 					estimates store metadta_Nullse
 					
 					qui lrtest metadta_modest metadta_Nullse
@@ -1267,7 +1275,7 @@ program define metadta, eclass sortpreserve byable(recall)
 					local nullsp `sp'
 					local nullsp = "`seregexpression' `nullsp'"
 					`echo' fitmodel `event' `total' `se' `sp' `strataif',  bcov(`bcov') wcov(`wcov') modelopts(`modeloptsi') model(`getmodel') regexpression(`nullsp') ///
-					sid(`studyid') `design' ipair(`ipair') level(`level') nested(`first')
+					sid(`studyid') `design' ipair(`ipair') level(`level') nested(`first') `progress'
 					estimates store metadta_Nullsp
 					
 					qui lrtest metadta_modest metadta_Nullsp
@@ -1320,35 +1328,7 @@ program define metadta, eclass sortpreserve byable(recall)
 		mat `refei' = (`S_2', `kcov', `S_3') // chisq re vs fe, df, pv re vs fe
 		mat colnames `refei' = Chi2 df pval
 		mat rownames `refei' = Overall
-		
-		//Get exact estimates	
-		if `Nobs' > 1 & `p' < 1 {
-			qui estimates restore metadta_modest
-			 qui {					
-				//Exact inference					
-				sum `event' if e(sample) & `se'
-				local n1 = r(sum)
-				sum `total' if e(sample) & `se'
-				local N1 = r(sum)
-				
-				metadta_absexactci `N1' `n1',  level(`level') //exact ci
-				mat `absexactse' = r(absexact)
-				
-				sum `event' if e(sample) & `sp'
-				local n2 = r(sum)
-				sum `total' if e(sample) & `sp'
-				local N2 = r(sum)
-				
-				metadta_absexactci `N2' `n2',  level(`level') //exact ci
-				mat `absexactsp' = r(absexact)
-				
-				mat `absexact' = `absexactse' \ `absexactsp'					
-				mat rownames `absexact' = Sensitivity Specificity
-				
-			}
-			local optimizedi = 1
-		}		
-	
+			
 		if `Nobs' > 1 {		
 			
 			//LOG ODDS			
@@ -1361,6 +1341,119 @@ program define metadta, eclass sortpreserve byable(recall)
 			mat `logoddsi' = r(outmatrix)
 			mat `selogoddsi' = r(outmatrixse)
 			mat `splogoddsi' = r(outmatrixsp)
+			
+			//Get exact stats
+			local longnames "Sensitivity Specificity"
+			local shortnames "se sp"
+			local parameters "`se' `sp'"
+			local matnames "`selogoddsi' `splogoddsi'"
+			
+			forvalues run=1/2 {
+				local namemat : word `run' of `matnames'
+				local parameter : word `run' of `parameters'
+				local prefix : word `run' of `shortnames'
+				local Stat : word `run' of `longnames'
+			
+				qui {
+					local nrow`prefix' = rowsof(`namemat') //length of the vector
+					local `prefix'rnames :rownames `namemat'
+					local `prefix'eqnames :roweq `namemat'
+					local `prefix'newnrows = 0
+					local `prefix'mindex = 0
+					
+					mat ``prefix'row' = J(1, 11, .)
+					mat rownames ``prefix'row' = "`Stat'"
+						
+					foreach vari of local `prefix'eqnames {		
+						local ++`prefix'mindex
+						local group : word ``prefix'mindex' of ``prefix'rnames'
+						
+						//Skip if continous variable
+						if (strpos("`vari'", "_") == 1) & ("`group'" != "`Stat'"){
+							continue
+						}
+						
+						cap drop `subset' 
+						
+						if "`group'" != "`Stat'" {
+							if strpos("`vari'", "*") == 0 {
+								cap drop `hold'
+								decode `vari', gen(`hold')
+								cap drop `subset'
+								local latentgroup = ustrregexra("`group'", "_", " ")
+								gen `subset' = 1 if `hold' == "`latentgroup'" & e(sample) == 1 & `parameter'
+							}
+							else {
+								tokenize `vari', parse("*")
+								local leftvar = "`1'"
+								local rightvar = "`3'"
+								
+								tokenize `group', parse("|")
+								local leftgroup = "`1'"
+								local rightgroup = "`3'"
+								
+								cap drop `holdleft' `holdright'
+								decode `leftvar', gen(`holdleft')
+								decode `rightvar', gen(`holdright')
+								cap drop `subset'
+								
+								local latentleftgroup = ustrregexra("`leftgroup'", "_", " ")
+								local latentrightgroup = ustrregexra("`rightgroup'", "_", " ")
+								gen `subset' = 1 if (`holdleft' == "`latentleftgroup'") & (`holdright' == "`latentrightgroup'") & (e(sample) == 1) & `parameter'
+							}					
+						}
+						else {
+							//All
+							gen `subset' = 1 if e(sample) == 1  & `parameter'
+						}
+						
+						count if `subset' == 1 
+						local nsubset = r(N)
+						
+						//Get the strata total
+						sum `total' if `subset' == 1
+						local stratatotal = r(sum)
+						
+						//Get the strata events
+						sum `event' if `subset' == 1
+						local strataevents = r(sum)
+						
+						//Get the strata size
+						count if `subset' == 1
+						local stratasize = r(N)
+						
+						tempvar ones zeros
+						gen `ones' = `event'==`total' 
+						sum `ones' if `subset' == 1 
+						local sumones = r(sum)
+						
+						gen `zeros' = `event'==0 
+						sum `zeros' if `subset' == 1  
+						local sumzeros = r(sum)
+						
+						//Obtain the exact stats
+						absexactci `stratatotal' `strataevents',  level(`level') //exact ci
+						mat `absexact' = r(absexact)
+						local modelp = `absexact'[1, 1]
+						local postse = `absexact'[1, 2]
+						local lowerp = `absexact'[1, 5]
+						local upperp = `absexact'[1, 6]
+						
+						mat ``prefix'exactabsoutii' = (r(absexact), `stratatotal', `strataevents', `stratasize', `sumones', `sumzeros')
+						mat rownames ``prefix'exactabsoutii' = `vari':`group'
+						
+						//Stack the matrices
+						local ++`prefix'newnrows
+						if ``prefix'newnrows' == 1 {
+							mat ``prefix'exactabsouti' = ``prefix'row' \ ``prefix'exactabsoutii'	
+						}
+						else {
+							mat ``prefix'exactabsouti' = ``prefix'exactabsouti'	\  ``prefix'exactabsoutii'
+						}
+					}
+					*mat colnames ``prefix'exactabsouti' = Mean SE z P>|z| Lower Upper Total Events Studies Ones Zeros
+				}
+			}
 			
 			if "`tradeoff'" != "" {
 				mat `cutmat' = r(cutmat)
@@ -1438,33 +1531,7 @@ program define metadta, eclass sortpreserve byable(recall)
 			mat `popabsoutsei' = r(outmatrixse)
 			mat `popabsoutspi' = r(outmatrixsp)
 			mat `popabsouti' = r(outmatrix)
-			
-			
-			//Create a matrix with exact abs
-			local nrowsepop = rowsof(`popabsoutsei')
-			mat `exactabsoutsei' = J(`nrowsepop', 5, .)
-			local eserownames : rownames `popabsoutsei'
-			mat rownames `exactabsoutsei' = `eserownames'
-			
-			//Replace overall with exact estimate if necessary
-			if `optimizedi' {
-				mat `exactabsoutsei'[`nrowsepop', 1] = `absexactse'[1, 1]
-				mat `exactabsoutsei'[`nrowsepop', 4] = `absexactse'[1, 5]
-				mat `exactabsoutsei'[`nrowsepop', 5] = `absexactse'[1, 6]
-			}
 						
-			local nrowsppop = rowsof(`popabsoutspi')
-			mat `exactabsoutspi' = J(`nrowsppop', 5, .)
-			local esprownames : rownames `popabsoutspi'
-			mat rownames `exactabsoutspi' = `esprownames'
-			
-			//Replace overall with exact estimate if necessary
-			if `optimizedi' {
-				mat `exactabsoutspi'[`nrowsppop', 1] = `absexactsp'[1, 1]
-				mat `exactabsoutspi'[`nrowsppop', 4] = `absexactsp'[1, 5]
-				mat `exactabsoutspi'[`nrowsppop', 5] = `absexactsp'[1, 6]
-			}
-			
 			//RR
 			local rr "norr"
 			if `pcat' > 0 | "`typevarx'" == "i" {
@@ -1532,8 +1599,8 @@ program define metadta, eclass sortpreserve byable(recall)
 			mat rownames `popabsoutsei' = Sensitivitiy 
 			mat rownames `popabsoutspi' = Specificity			
 			
-			mat `exactabsoutsei' = J(1, 5, .)
-			mat `exactabsoutspi' = J(1, 5, .)
+			mat `seexactabsouti' = J(1, 11, .)
+			mat `spexactabsouti' = J(1, 11, .)
 			
 			mat `rrouti' = J(2, 6, 1)
 			mat `serrouti' = J(1, 6, 1)
@@ -1601,8 +1668,8 @@ program define metadta, eclass sortpreserve byable(recall)
 				mat `popabsoutsei' 	= `popabsoutsei'[2..., 1...]
 				mat `popabsoutspi' 	= `popabsoutspi'[2..., 1...]
 				
-				mat `exactabsoutsei' = `exactabsoutsei'[2..., 1...]
-				mat `exactabsoutspi' = `exactabsoutspi'[2..., 1...]
+				mat `seexactabsouti' = `seexactabsouti'[2..., 1...]
+				mat `spexactabsouti' = `spexactabsouti'[2..., 1...]
 			}
 			//Add row for byvar
 			/*
@@ -1618,8 +1685,8 @@ program define metadta, eclass sortpreserve byable(recall)
 			mat roweq `popabsoutsei' = `byrowname'
 			mat roweq `popabsoutspi' = `byrowname'
 			
-			mat roweq `exactabsoutsei' = `byrowname'
-			mat roweq `exactabsoutspi' = `byrowname'
+			mat roweq `seexactabsouti' = `byrowname'
+			mat roweq `seexactabsouti' = `byrowname'
 			
 			if "`rr'" == "" {
 				mat roweq `serrouti' = `byrowname'
@@ -1656,8 +1723,8 @@ program define metadta, eclass sortpreserve byable(recall)
 			mat `popabsoutsp' = `popabsoutspi'
 			mat `popabsout' = `popabsouti' 
 			
-			mat `exactabsoutse' =  `exactabsoutsei'	
-			mat `exactabsoutsp' =  `exactabsoutspi'
+			mat `seexactabsout' =  `seexactabsouti'	
+			mat `spexactabsout' =  `spexactabsouti'
 			
 			if "`rr'" == "" {		
 				mat `rrout' =	`rrouti'
@@ -1712,8 +1779,8 @@ program define metadta, eclass sortpreserve byable(recall)
 			mat `popabsoutsp' =  `popabsoutsp' \ `popabsoutspi'
 			mat `popabsout' =  `popabsout' \ `popabsouti' 
 			
-			mat `exactabsoutse' = `exactabsoutse' \ `exactabsoutsei'
-			mat `exactabsoutsp' = `exactabsoutsp' \ `exactabsoutspi'
+			mat `seexactabsout' = `seexactabsout' \ `seexactabsouti'
+			mat `spexactabsout' = `spexactabsout' \ `spexactabsouti'
 			
 			if "`rr'" == "" {
 				mat `rrout' = `rrout' \ `rrouti'
@@ -1836,31 +1903,53 @@ program define metadta, eclass sortpreserve byable(recall)
 			di as txt "{phang}Number of `first's = " as res "`nfirst'{p_end}"
 		}
 		if `Nobs' > 1 {
-			if "`stratify'" != ""  { 
-				di  _n	
+			if "`stratify'" != "" {
 				qui estimates restore metadta_modest
-				local ilab = ustrregexra("`ilab'", " ", "_")
-				local ilab = ustrregexra("`ilab'", "-", "_")
-				local ilab = ustrregexra("`ilab'", "+", "")
-				local ilab = ustrregexra("`ilab'", "/", "_")
-				local ilab = "`ilab'" + "$by_index_"
+				di  _n	
+
+				if (`i' < `=`nlevels' + 1') {					
+					local ilab = ustrregexra("`ilab'", " ", "_")
+					local ilab = ustrregexra("`ilab'", "-", "_")
+					if strpos("`ilab'", "+") != 0 {
+						local ilab = ustrregexra("`ilab'", "+", "")
+					}
+					if strpos("`ilab'", "/") != 0 {
+						local ilab = ustrregexra("`ilab'", "/", "_")
+					}
+					local ilab = "`ilab'" + "$by_index_"
+					
+					//abbreviate if NECESSARY
+					local ilablen = strlen("`ilab'")
+					if `ilablen' > 20 {
+						local ilab = abbrev("`ilab'", 15)
+						if strpos("`ilab'", "~") != 0 {
+							local ilab = ustrregexra("`ilab'", "~", "")
+						}
+					}
+				}
+				else {
+					local ilab ="All_studies" + "$by_index_"
+				}
+				
 				qui estimates store metadta_`ilab'
 				display `"{stata "estimates replay metadta_`ilab'":Click to show the raw estimates}"'
 			}
 			else {
 				if "$by_index_" !="" {
 					di  _n	
-					qui estimates restore metadta_modest
+					qui estimates restore metapreg_modest
 					local ilab = "$by_index_"
-					qui estimates store metadta_`ilab'
+					qui estimates store metapreg_`ilab'
 					display `"{stata "estimates replay metadta_`ilab'":Click to show the raw estimates}"'
 				}
 				else {
-					di  _n				
+					di  _n					
 					display `"{stata "estimates replay metadta_modest":Click to show the raw estimates}"'
 				}
 			}
 		}
+		
+
 		
 		if "`mc'" !="" {
 			if "`confariates'" != "" {
@@ -1898,13 +1987,21 @@ program define metadta, eclass sortpreserve byable(recall)
 		mat `pserow' = J(1, 5, .)
 		mat `psprow' = J(1, 5, .)
 		
+		mat `eserow' = J(1, 11, .)
+		mat `esprow' = J(1, 11, .)
+		
 		mat `semcrow' = J(1, 3, .)
 		mat `spmcrow' = J(1, 3, .)
 		
 		mat rownames `serow' = "*--Sensitivity--*"
 		mat rownames `sprow' = "*--Specificity--*" //19 characters
+		
 		mat rownames `pserow' = "*--Sensitivity--*"
 		mat rownames `psprow' = "*--Specificity--*" //19 characters
+		
+		mat rownames `eserow' = "*--Sensitivity--*"
+		mat rownames `esprow' = "*--Specificity--*" //19 characters
+		
 		mat rownames `semcrow' = "*--Sensitivity--*"
 		mat rownames `spmcrow' = "*--Specificity--*"
 		
@@ -1940,8 +2037,8 @@ program define metadta, eclass sortpreserve byable(recall)
 		mat `popabsoutse' = `pserow' \  `popabsoutse'
 		mat `popabsoutsp' = `psprow' \  `popabsoutsp'
 		
-		mat `exactabsoutse' = `pserow' \  `exactabsoutse'
-		mat `exactabsoutsp' = `psprow' \  `exactabsoutsp'
+		mat `seexactabsout' = `eserow' \  `seexactabsout'
+		mat `spexactabsout' = `esprow' \  `spexactabsout'
 
 		mat `absout' = `absoutse' \ `absoutsp'
 		mat `popabsout' = `popabsoutse' \ `popabsoutsp'
@@ -1953,8 +2050,8 @@ program define metadta, eclass sortpreserve byable(recall)
 		mat colnames `popabsout' = Mean SE Median Lower Upper
 		mat colnames `popabsoutse' = Mean SE Median Lower Upper
 		mat colnames `popabsoutsp' = Mean SE Median Lower Upper
-		mat colnames `exactabsoutse' = Mean SE Median Lower Upper
-		mat colnames `exactabsoutsp' = Mean SE Median Lower Upper
+		mat colnames `seexactabsout' = Mean SE z P>|z| Lower Upper Total Events Studies Ones Zeros
+		mat colnames `spexactabsout' = Mean SE z P>|z| Lower Upper Total Events Studies Ones Zeros
 					
 		if "`rr'" == "" {
 			mat `serrow' = J(1, 6, .)
@@ -2205,11 +2302,10 @@ program define metadta, eclass sortpreserve byable(recall)
 	prep4show `id' `cid' `se' `use' `neolabel' `es' `lci' `uci' `modeles' `modellci' `modeluci', ///
 		sortby(`sortby') groupvar(`groupvar') grptotal(`grptotal') 	cveffect(`cveffect') ///
 		outplot(`outplot') serrout(`serrout') popserrout(`popserrout') popseorout(`popseorout') ///
-		absoutse(`absoutse') absoutsp(`absoutsp') popabsoutse(`popabsoutse') popabsoutsp(`popabsoutsp') exactabsoutse(`exactabsoutse') exactabsoutsp(`exactabsoutsp')    ///
+		absoutse(`absoutse') absoutsp(`absoutsp') popabsoutse(`popabsoutse') popabsoutsp(`popabsoutsp') exactabsoutse(`seexactabsout') exactabsoutsp(`spexactabsout')    ///
 		popsprrout(`popsprrout') sprrout(`sprrout') popsporout(`popsporout') `subgroup' `summaryonly' `stratify' ///
 		`overall' download(`download') indvars(`regressors') depvars(`depvars') `design' `enhance'
-		
-
+	
 	//Extra tables
 	//het
 	if "`model'" == "random" & "`htable'" == "" {			
@@ -2498,7 +2594,7 @@ program define fitmodel, rclass
 
 
 	syntax varlist [if], [ bcov(string) wcov(string) model(string) modelopts(string asis) regexpression(string) sid(varname) p(string) ///
-		nested(varname) comparative ipair(varname) level(integer 95) abnetwork cbnetwork general comparative]
+		nested(varname) comparative ipair(varname) level(integer 95) abnetwork cbnetwork general comparative progress]
 		tokenize `varlist'	
 		
 		marksample touse, strok
@@ -2506,6 +2602,10 @@ program define fitmodel, rclass
 		tempname varcov coefs initmat
 		
 		local exactest = 0
+		
+		if "`progress'" != "" {
+			local echo noisily
+		}
 		
 		if "`wcov'" != "" {
 			local nested = `"|| (`nested'`ipair': `3' `4', noconstant cov(`wcov'))"'
@@ -2531,7 +2631,7 @@ program define fitmodel, rclass
 	
 		if ("`model'" == "fixed") {
 			local ++try
-			capture noisily binreg `1' `regexpression' if `touse', noconstant n(`2') ml `modelopts' l(`level')
+			capture `echo' binreg `1' `regexpression' if `touse', noconstant n(`2') ml `modelopts' l(`level')
 			local success = _rc
 		}
 				
@@ -2563,7 +2663,7 @@ program define fitmodel, rclass
 			//First trial
 			local ++try
 			#delim ;
-			capture noisily `fitcommand' (`1' `regexpression' if `touse', noconstant )|| 
+			capture `echo' `fitcommand' (`1' `regexpression' if `touse', noconstant )|| 
 			  (`sid': `re', noconstant `cov') `nested',
 			  binomial(`2') `modelopts' `intopts' `iterate'  l(`level');
 			#delimit cr 
@@ -2594,7 +2694,7 @@ program define fitmodel, rclass
 				noi di as txt _n "Just a moment - Obtaining better initial values "
 				noi di   "*********************************** ************* ***************************************" 
 				local ++try
-				capture noisily binreg `1' `regexpression' if `touse', noconstant n(`2') ml  
+				capture `echo' binreg `1' `regexpression' if `touse', noconstant n(`2') ml  
 				local successinits = _rc
 				if _rc == 0 {				
 					qui estimates table
@@ -2644,7 +2744,7 @@ program define fitmodel, rclass
 				//Laplace first without nested
 				local ++try
 				#delim ;
-				capture noisily `fitcommand' (`1' `regexpression' if `touse', noc )|| 
+				capture `echo' `fitcommand' (`1' `regexpression' if `touse', noc )|| 
 				  (`sid': `re', noc `cov'),
 				  binomial(`2') `initvals' `intopts' `iterate'  l(`level') matlog laplace;
 				#delimit cr 
@@ -2680,7 +2780,7 @@ program define fitmodel, rclass
 					//fit once more with nested
 					local ++try
 					#delim ;
-					capture noisily `fitcommand' (`1' `regexpression' if `touse', noc )|| 
+					capture `echo' `fitcommand' (`1' `regexpression' if `touse', noc )|| 
 					  (`sid': `re', noc `cov') `nested',
 					  binomial(`2') `initvals' `intopts' `iterate'  l(`level') matlog laplace;
 					#delimit cr 
@@ -2725,7 +2825,7 @@ program define fitmodel, rclass
 					//Final fit
 					local ++try
 					#delim ;
-					capture noisily `fitcommand' (`1' `regexpression' if `touse', noc )|| 
+					capture `echo' `fitcommand' (`1' `regexpression' if `touse', noc )|| 
 					  (`sid': `re', noc `cov') `nested',
 					  binomial(`2') `initvals' `intopts' `iterate' `refine' `matlog'  l(`level');
 					#delimit cr 
@@ -2737,7 +2837,7 @@ program define fitmodel, rclass
 		}
 		//Revert to FE if ME fails
 		if (`success' != 0) & ("`model'" == "random") {
-			capture noisily binreg `1' `regexpression' if `touse', noconstant n(`2') ml  l(`level')
+			capture `echo' binreg `1' `regexpression' if `touse', noconstant n(`2') ml  l(`level')
 			local success = e(rc)
 			local model "fixed"
 		}		
@@ -2782,8 +2882,8 @@ end
 	/*+++++++++++++++++++++++++	SUPPORTING FUNCTIONS: absexactci +++++++++++++++++++++++++
 								CI for proportions
 	++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
-	cap program drop metadta_absexactci
-	program define metadta_absexactci, rclass
+	cap program drop absexactci
+	program define absexactci, rclass
 
 		syntax anything(name=data id="data"), [level(real 95)]
 		
@@ -2977,11 +3077,18 @@ program define prep4show
 					local S_422 = `popabsoutsp'[`=`l'*`m' + `c'', 5]
 					
 					//Get exact CI
-					local E_312 = `exactabsoutse'[`=`l'*`m' + `c'', 4]
-					local E_322 = `exactabsoutsp'[`=`l'*`m' + `c'', 4]
+					local E_312 = `exactabsoutse'[`=`l'*`m' + `c'', 5]
+					local E_322 = `exactabsoutsp'[`=`l'*`m' + `c'', 5]
 					
-					local E_412 = `exactabsoutse'[`=`l'*`m' + `c'', 5]
-					local E_422 = `exactabsoutsp'[`=`l'*`m' + `c'', 5]
+					local E_412 = `exactabsoutse'[`=`l'*`m' + `c'', 6]
+					local E_422 = `exactabsoutsp'[`=`l'*`m' + `c'', 6]
+					
+					local se1 = `exactabsoutse'[`=`l'*`m' + `c'', 10]
+					local sp1 = `exactabsoutsp'[`=`l'*`m' + `c'', 10]
+					
+					local se0 = `exactabsoutse'[`=`l'*`m' + `c'', 11]
+					local sp0 = `exactabsoutsp'[`=`l'*`m' + `c'', 11]
+					
 					
 					//Get Conditional CI
 					//lci
@@ -3008,13 +3115,13 @@ program define prep4show
 						
 						//if simulated FE variance 5 times larger replace with exact
 						//se
-						if (`=(`S_412' - `S_312')/(`E_412' - `E_312')' > 5) & (`E_412' != .) & (`E_312' != .)  {
+						if (`=(`S_412' - `S_312')/(`E_412' - `E_312')' > 5) & (`E_412' != .) & (`E_312' != .)  & (`se1' > 1 | `se0' > 1) {
 							local S_312 = `E_312'
 							local S_412 = `E_412'
 						}
 						
 						//sp
-						if (`=(`S_422' - `S_322')/(`E_422' - `E_322')' > 5) & (`E_422' != .) & (`E_322' != .)  {
+						if (`=(`S_422' - `S_322')/(`E_422' - `E_322')' > 5) & (`E_422' != .) & (`E_322' != .) & (`sp1' > 1 | `sp0' > 1) {
 							local S_322 = `E_322'
 							local S_422 = `E_422'
 						}
@@ -5651,25 +5758,35 @@ end
 		gen  `newid' = `id'
 		//Add five spaces on top of the dataset and 1 space below
 		*gen `expand' = 1
-		gen `expand' = 1 + 5*(_n==1)  /*+ 1*(_n==_N) */
+		sort `se' `id'
+		
+		if "`outplot'" == "abs" {
+			local add = 1
+		}
+		else {
+			local add = 0
+		}
+		
+		gen `expand' = 1 + `=`add' + 4'*(_n==1)  + 1*(_n==_N) 
 		expand `expand'
 		sort `newid' `se' `use'
-
-		replace `newid' = _n in 1/5
-		replace `newid' = `newid' + 5 if _n>5
-		replace `label' = "" in 1/5
-		replace `use' = -2 in 1/4
-		replace `use' = 0 in 5
-		/*
-		replace `newid' = _N  if _N==_n
+		
+		replace `newid' = _n in 1/`=`add' + 5'  
+		replace `newid' = `newid' + `=`add' + 4' if _n> `=`add' + 5'  
+		replace `label' = "" in 1/`=`add' + 4'
+		replace `use' = -2 in 1/`=`add' + 3'
+		replace `use' = 0 in `=`add' + 4'
+		
+		replace `newid' = `newid'+1  if _N==_n
 		replace `use' = 0  if _N==_n
 		replace `label' = "" if _N==_n
-		*/
+		
 		/*
 		tempvar flag
 		gen `flag' = 1
 		replace `flag' = 0 in 1/4
 		*/
+		
 		replace `id' = `newid'
 		drop `newid'
 		sort `id' `se'
@@ -5699,9 +5816,9 @@ end
 		else {
 			local lcols "`label' `lcols'"
 		}
-		
 		/*
 		egen `newid' = group(`id')
+		
 		replace `id' = `newid'
 		drop `newid'
 		*/
@@ -5970,6 +6087,27 @@ end
 				if `spread' > 4 {
 					local spread = 4
 				}
+				/*
+				local line = 1
+				local end = 0
+
+				gettoken now remain : colName
+				while `end' == 0 {
+					replace `leftLB`lcolsN'' = `leftLB`lcolsN'' + " " + "`now'" in `line'
+					gettoken now remain : remain
+
+					if ("`now'" == "") | (`line' == 4) {
+						local end = 1
+					}
+					if  length("`remain'") > `titleln'/`spread' {
+						if `end' == 0 {
+							local line = `line' + 1
+						}
+					}
+				}
+				if `line' > `maxline'{
+					local maxline = `line'
+				}*/
 				
 				gettoken word1 remain : colName
 				local index = 1
@@ -6027,6 +6165,7 @@ end
 					if "`colName'"==""{
 						local colName = "`1'"
 					}
+					
 					local titleln = strlen("`colName'")
 					tempvar tmpln
 					gen `tmpln' = strlen(``param'rightLB`rcol`param'N'')
@@ -6038,6 +6177,27 @@ end
 					if `spread' > 4 {
 						local spread = 4
 					}
+					/*
+					local line = 1
+					local end = 0
+
+					gettoken now remain : colName
+					while `end' == 0 {
+						replace ``param'rightLB`rcol`param'N'' = ``param'rightLB`rcol`param'N'' + " " + "`now'" in `line'
+						gettoken now remain : remain
+
+						if ("`now'" == "") | (`line' == 4) {
+							local end = 1
+						}
+						if  length("`remain'") > `titleln'/`spread' {
+							if `end' == 0 {
+								local line = `line' + 1
+							}
+						}
+					}
+					if `line' > `maxline'{
+						local maxline = `line'
+					}*/
 										
 					gettoken word1 remain : colName
 					local index = 1
@@ -6059,6 +6219,7 @@ end
 					if `spread' > `maxline'{
 						local maxline = `spread'
 					}
+					
 					mac shift
 				}
 			}
@@ -6066,18 +6227,40 @@ end
 		
 
 		// now get rid of extra title rows if they weren't used
-		replace `id' = `id' - 5 + `maxline' if `id' > `maxline'
-		if `maxline'==3 {
-			drop in 4	
-		}
-		if `maxline'==2 {
-			drop in 3/4 
-		}
-		if `maxline'==1 {
-			drop in 2/4 
+		*replace `id' = `id' - 5 + `maxline' if `id' > `maxline'
+		*if "`outplot'" == "abs" | "`stratify'" != "" { 
+			if `maxline'==3 {
+				drop in 4	
+			}
+			if `maxline'==2 {
+				drop in 3/4 
+			}
+			if `maxline'==1 {
+				drop in 2/4 
+			}
+		/*}
+		else {
+			drop in `maxline'/4
+		}*/
+		
+		cap sum `id' if `use'==3
+		if _rc == 0 {
+			local overallid = r(min) 
+			drop if `id' > `=`overallid' + 1'
 		}
 		
-		local borderline = `maxline' + 0.35
+		egen `newid' = group( `id')	
+		replace `id' = `newid'
+		drop `newid'
+		
+		
+		*if "`outplot'" == "abs" | "`stratify'" != "" {
+			local borderline = `maxline' + 0.35
+		/*} 
+		else{
+			local borderline = 2 + 0.35
+		}*/
+		
 				
 		local leftWDtot = 0
 		local serightWDtot = 0
