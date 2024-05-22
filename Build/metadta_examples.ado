@@ -88,7 +88,7 @@ program define example_two_three
 	
 	#delimit ;
 	metadta tp fp fn tn test, 
-		studyid(studyid) comparative model(random, laplace) cov(unstructured, independent) sumtable(all) smooth gof
+		studyid(studyid) comparative model(random, intmethod(laplace)) cov(unstructured, independent) sumtable(all) smooth gof progress
 		foptions(logscale outplot(rr) texts(2) xlabel(0.5, 1, 2)  ysize(10) xsize(20) astext(60)) 
 	;
 	#delimit cr
@@ -152,6 +152,11 @@ program define example_three_three
 	di `"{phang}foptions(logscale outplot(rr) grid  texts(1.5) xlabel(0.5, 1, 2) ysize(10) xsize(20) astext(60)) 		{p_end}"'
 	
 	set more off
+	
+	cap log close
+	log using "C:\DATA\WIV\Projects\Stata\Metadta\Logs\doczone1.txt", text replace 
+	set trace off
+	
 	#delimit ;
 	metadta tp fp fn tn sample, nomc smooth gof progress
 	studyid(study) cov(unstructured, independent) 
