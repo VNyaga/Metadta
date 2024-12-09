@@ -962,6 +962,7 @@ program define metadta, eclass sortpreserve byable(recall)
 			
 			//Returned estimates			
 			qui estimates store metadta_modest
+			local predcmd = e(predict)
 
 			cap drop _ESAMPLE
 			qui gen _ESAMPLE = e(sample)
@@ -1027,7 +1028,7 @@ program define metadta, eclass sortpreserve byable(recall)
 			}
 		}
 		
-		estcovar, matrix(`coefmat') model(`getmodel') bcov(`bcov') wcov(`wcov') `design'
+		estcovar, matrix(`coefmat') model(`getmodel') bcov(`bcov') wcov(`wcov') `design' se(`se') sp(`sp') sid(`studyid') predcmd(`predcmd')
 		local kcov = r(k) //#covariance parameters
 		mat `BVari' = r(BVar)  //Between var-cov
 		mat `WVari' = r(WVar)  //Within var-cov
@@ -1342,6 +1343,7 @@ program define metadta, eclass sortpreserve byable(recall)
 			mat `selogoddsi' = r(outmatrixse)
 			mat `splogoddsi' = r(outmatrixsp)
 			
+			
 			//Get exact stats
 			local longnames "Sensitivity Specificity"
 			local shortnames "se sp"
@@ -1369,13 +1371,13 @@ program define metadta, eclass sortpreserve byable(recall)
 						local group : word ``prefix'mindex' of ``prefix'rnames'
 						
 						//Skip if continous variable
-						if (strpos("`vari'", "_") == 1) & ("`group'" != "`Stat'"){
+						if (strpos("`vari'", "_") == 1) {
 							continue
 						}
 						
 						cap drop `subset' 
 						
-						if "`group'" != "`Stat'" {
+						if ("`group'" != "`Stat'" ) {
 							if strpos("`vari'", "*") == 0 {
 								cap drop `hold'
 								decode `vari', gen(`hold')
@@ -2440,6 +2442,14 @@ program define metadta, eclass sortpreserve byable(recall)
 		ereturn matrix setestnl = `setestnl' //Equality of RR - se
 		ereturn matrix sptestnl = `sptestnl'
 	}*/	
+	cap confirm matrix `seexactabsout'
+	if _rc == 0 {
+		ereturn matrix exactabsoutse = `seexactabsout'
+	}
+	cap confirm matrix `spexactabsout'
+	if _rc == 0 {
+		ereturn matrix exactabsoutsp = `spexactabsout'
+	}
 	cap confirm matrix `logodds'
 	if _rc == 0 {
 		ereturn matrix logodds = `logodds' //logodds se and sp
@@ -2633,6 +2643,7 @@ program define fitmodel, rclass
 			local ++try
 			capture `echo' binreg `1' `regexpression' if `touse', noconstant n(`2') ml `modelopts' l(`level')
 			local success = _rc
+			local model "fixed"
 		}
 				
 		if ("`model'" == "random") {
@@ -2832,6 +2843,7 @@ program define fitmodel, rclass
 					
 					local success = _rc
 					local converged = e(converged)
+					
 				}
 			}			
 		}
@@ -3052,7 +3064,7 @@ program define prep4show
 			local nlevels = r(max)
 			local c = 0
 			local m = 1
-			
+						
 			forvalues l = 1/`nlevels' {
 				if "`outplot'" == "abs" {
 					if  "`general'`comparative'" != "" {
@@ -3082,7 +3094,7 @@ program define prep4show
 					
 					local E_412 = `exactabsoutse'[`=`l'*`m' + `c'', 6]
 					local E_422 = `exactabsoutsp'[`=`l'*`m' + `c'', 6]
-					
+										
 					local se1 = `exactabsoutse'[`=`l'*`m' + `c'', 10]
 					local sp1 = `exactabsoutsp'[`=`l'*`m' + `c'', 10]
 					
@@ -3183,6 +3195,7 @@ program define prep4show
 				replace `label'  = "`lab'" if `use' == -2 & `groupvar' == `l'	
 				replace `label'  = "`groupvar' = `lab'" if `use' == -2 & `groupvar' == `l' & "`abnetwork'" == ""
 				replace `label'  = "`lab'" if `use' == 2 & `groupvar' == `l'	& "`outplot'" == "rr" & "`abnetwork'" != ""
+				
 				if "`cveffect'" == "sesp" {
 					replace `es'  = `S_112'*`se' + `S_122'*`sp' if `use' == 2 & `groupvar' == `l'	
 					replace `lci' = `S_312'*`se' + `S_322'*`sp' if `use' == 2 & `groupvar' == `l'	
@@ -5087,7 +5100,7 @@ cap program drop estcovar
 program define estcovar, rclass
 
 
-	syntax,  model(string) [matrix(name)  bcov(string) wcov(string) abnetwork cbnetwork comparative general ]
+	syntax,  model(string) [matrix(name)  bcov(string) wcov(string) abnetwork cbnetwork comparative general predcmd(string) sid(varname) se(varname) sp(varname)]
 	*matrix is colvector
 	tempname matcoef BVar WVar
 	*Initialize - Default
@@ -5097,7 +5110,7 @@ program define estcovar, rclass
 				0, 0)
 	local b = 0
 	local w = 0	
-	
+		
 	if "`model'" == "random" {
 		mat `matcoef' = `matrix''
 		local nrows = rowsof(`matcoef')
@@ -5118,35 +5131,71 @@ program define estcovar, rclass
 
 		*BVAR
 		if strpos("`bcov'", "uns") != 0 {
-			mat	`BVar' = (exp(`matcoef'[`nrows' - 2 - `w', 1])^2, exp(`matcoef'[ `nrows' - 1 - `w', 1])*exp(`matcoef'[`nrows' - 2 - `w', 1])*tanh(`matcoef'[ `nrows' - `w', 1])\ ///
-						exp(`matcoef'[ `nrows' - 1 - `w', 1])*exp(`matcoef'[`nrows' - 2 - `w', 1])*tanh(`matcoef'[ `nrows' - `w', 1]), exp(`matcoef'[ `nrows' - 1 - `w', 1])^2)
+			if "`predcmd'" == "meqrlogit_p" {
+				mat	`BVar' = (exp(`matcoef'[`nrows' - 2 - `w', 1])^2, exp(`matcoef'[ `nrows' - 1 - `w', 1])*exp(`matcoef'[`nrows' - 2 - `w', 1])*tanh(`matcoef'[ `nrows' - `w', 1])\ ///
+							exp(`matcoef'[ `nrows' - 1 - `w', 1])*exp(`matcoef'[`nrows' - 2 - `w', 1])*tanh(`matcoef'[ `nrows' - `w', 1]), exp(`matcoef'[ `nrows' - 1 - `w', 1])^2)
+			}
+			else {
+				mat	`BVar' = ( _b[/var(`se'[`sid'])],  _b[/cov(`se'[`sid'],`sp'[`sid'])]\ ///
+							_b[/cov(`se'[`sid'],`sp'[`sid'])],  _b[/var(`sp'[`sid'])])
+			}
+			
 			local b = 3
 		}		
 		else if strpos("`bcov'", "ind") != 0 {
-			mat	`BVar' = (exp(`matcoef'[ `nrows' - 1 - `w', 1])^2, 0\ ///
-						0, exp(`matcoef'[ `nrows' - `w', 1])^2)
+			if "`predcmd'" == "meqrlogit_p" {
+				mat	`BVar' = (exp(`matcoef'[ `nrows' - 1 - `w', 1])^2, 0\ ///
+							0, exp(`matcoef'[ `nrows' - `w', 1])^2)
+			}
+			else {
+				mat	`BVar' = ( _b[/var(`se'[`sid'])], 0\ ///
+							0,  _b[/var(`sp'[`sid'])])
+			}
 			local b = 2
 		}
 		else if strpos("`bcov'", "exc") != 0 {
-			mat	`BVar' = (exp(`matcoef'[ `nrows' - 1 - `w', 1])^2, exp(`matcoef'[ `nrows' - 1 - `w', 1])*exp(`matcoef'[ `nrows' - 1 - `w', 1])*tanh(`matcoef'[ `nrows' - `w', 1])\ ///
-						exp(`matcoef'[ `nrows' - 1 - `w', 1])*exp(`matcoef'[ `nrows' - 1 - `w', 1])*tanh(`matcoef'[ `nrows' - `w', 1]), exp(`matcoef'[ `nrows' - 1 - `w', 1])^2)
+			if "`predcmd'" == "meqrlogit_p" {
+				mat	`BVar' = (exp(`matcoef'[ `nrows' - 1 - `w', 1])^2, exp(`matcoef'[ `nrows' - 1 - `w', 1])*exp(`matcoef'[ `nrows' - 1 - `w', 1])*tanh(`matcoef'[ `nrows' - `w', 1])\ ///
+							exp(`matcoef'[ `nrows' - 1 - `w', 1])*exp(`matcoef'[ `nrows' - 1 - `w', 1])*tanh(`matcoef'[ `nrows' - `w', 1]), exp(`matcoef'[ `nrows' - 1 - `w', 1])^2)
+			}
+			else{
+				mat	`BVar' = ( _b[/var(`se'[`sid'])],  _b[/cov(`se'[`sid'],`sp'[`sid'])]\ ///
+							_b[/cov(`se'[`sid'],`sp'[`sid'])],  _b[/var(`sp'[`sid'])])
+			}
 			local b = 2
 		}
 		else if (strpos("`bcov'", "id") != 0) {
-			mat	`BVar' = (exp(`matcoef'[ `nrows' - `w', 1])^2, 0\ ///
-				0, exp(`matcoef'[ `nrows' - `w', 1])^2)
-				
+			if "`predcmd'" == "meqrlogit_p" {
+				mat	`BVar' = (exp(`matcoef'[ `nrows' - `w', 1])^2, 0\ ///
+					0, exp(`matcoef'[ `nrows' - `w', 1])^2)
+			}
+			else{
+				mat	`BVar' = ( _b[/var(`se'[`sid'])],  0\ ///
+							0,  _b[/var(`sp'[`sid'])])
+			}			
 			local b = 1
 		}
 		else if (strpos("`bcov'", "sp") != 0) {
-			mat	`BVar' = (0, 0\ ///
-				0, exp(`matcoef'[ `nrows' - `w', 1])^2)
+			if "`predcmd'" == "meqrlogit_p" {
+				mat	`BVar' = (0, 0\ ///
+					0, exp(`matcoef'[ `nrows' - `w', 1])^2)
+			}
+			else {
+				mat	`BVar' = (0,  0 \ ///
+							0,  _b[/var(`sp'[`sid'])])
+			}			
 				
 			local b = 1
 		}
 		else if (strpos("`bcov'", "se") != 0) {
-			mat	`BVar' = (exp(`matcoef'[ `nrows' - `w', 1])^2, 0\ ///
-				0, 0)
+			if "`predcmd'" == "meqrlogit_p" {
+				mat	`BVar' = (exp(`matcoef'[ `nrows' - `w', 1])^2, 0\ ///
+					0, 0)
+			}
+			else {
+				mat	`BVar' = ( _b[/var(`se'[`sid'])],  0\ ///
+								0,  0)
+			}	
 				
 			local b = 1
 		}
@@ -7097,7 +7146,7 @@ end
 			}
 		}
 	
-		qui {
+		qui {			
 			local already 0
 			local nrowsp = rowsof(`splogodds')
 			local nrowse = rowsof(`selogodds')
@@ -7106,12 +7155,13 @@ end
 			local ncolsv = colsof(`v')
 			local layer = `=`nrowsv'/(`nlevels'*2)'
 				
-			mat `bvari' = (`bvar'[1 ,1], `bvar'[1, 7] \ `bvar'[1, 7], `bvar'[1, 3])
+			mat `bvari' = (`bvar'[1 ,1], `bvar'[1, 7] \ `bvar'[1, 7], `bvar'[1, 3])  //var-covariance
 						
 			forvalues j=1/`nlevels' {
 				if `p' == 0 & `nlevels' == 1 {
 					local shiftindex 0
 				}
+				
 				*Take out the right matrices
 				local seindex = `=`j' + `shiftindex''
 				local spindex = `=`j' + `shiftindex''
@@ -7119,9 +7169,11 @@ end
 				if (`p' == 1){					
 					mat `vi' = (`v'[`=`nlevels' + `j'', `=`nlevels' + `j''],  `v'[`j', `=`nlevels' + `j''] \ `v'[`j', `=`nlevels' + `j''], `v'[`j', `j'])	
 				}
+				
 				if (`p' != 1) {					
 					mat `vi' = (`v'[`nrowsv', `ncolsv'],  `v'[`=`nrowsv'-1', `ncolsv'] \ `v'[`=`nrowsv'-1', `ncolsv'], `v'[`=`nrowsv'-1', `=`ncolsv'-1'])
-				}							
+				}	
+				
 				if "`stratify'" != "" {					
 					mat `bvari' = (`bvar'[`j' ,1], `bvar'[`j', 7] \ `bvar'[`j', 7], `bvar'[`j', 3])
 					mat `vi' = (`v'[`=`ncolsv'*`j'' , `ncolsv'] , `v'[`=`ncolsv'*`j'-1', `ncolsv'] \ `v'[`=`ncolsv'*`j'-1', `ncolsv'], `v'[`=`ncolsv'*`j'-1', `=`ncolsv'-1'])
@@ -7251,7 +7303,7 @@ end
 
 					/*The curves*/
 					if "`curve'" =="" {
-						gen `se`j'' = invlogit(`lambda' * exp(-`beta' / 2) + exp(-`beta') * logit(`fpr`j'')) if `gvar' == `j' 
+						gen `se`j'' = invlogit(`lambda' * exp(-`beta' / 2) + exp(-`beta') * logit(`fpr`j'')) /*if `gvar' == `j' */
 						local sroc "`sroc' (line `se`j'' `fpr`j'', lcolor(`color') `curveopt')"
 						if `nlevels' == 1 {
 							local ++index
@@ -7317,7 +7369,8 @@ end
 				}
 				if `nlevels' > 1 {
 					local lab:label `gvar' `j' /*label*/
-					local legendlabel `"lab(`j' "`groupvar' = `lab'") `legendlabel'"'
+					*local legendlabel `"lab(`j' "`groupvar' = `lab'") `legendlabel'"'
+					local legendlabel `"lab(`j' "`lab'") `legendlabel'"'
 					local legendorder `"`j'  `legendorder'"'
 				}
 			}
@@ -7815,10 +7868,12 @@ program define postsim, rclass
 			else if (strpos("`bcov'", "sp") != 0) {
 				local varnames "`varsp' `wvarnames'"
 				local simvarnames "`simvarsp' `wsimvarnames'"
+				local nfeff = `=`ncoef' - 1 - `w''
 			}
 			else if (strpos("`bcov'", "se") != 0) {
 				local varnames "`varse' `wvarnames'"
 				local simvarnames "`simvarse' `wsimvarnames'"
+				local nfeff = `=`ncoef' - 1 - `w''
 			}
 			
 		}
